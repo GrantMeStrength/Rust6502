@@ -19,7 +19,7 @@ impl MemoryArray {
     }
 
     pub fn init() -> MemoryArray {
-        let mut memory_map : MemoryArray = MemoryArray::new();
+        let memory_map : MemoryArray = MemoryArray::new();
         memory_map
  
    }
