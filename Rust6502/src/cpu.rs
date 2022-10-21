@@ -669,13 +669,20 @@ impl CPU {
 	
 	fn compare(&mut self, a: u8, b: u8) {
 		let result = a.wrapping_sub(b);
-		self.set_flag(Flag::Zero, result == 0);
-		self.set_flag(Flag::Carry, a >= b);
-		self.set_flag(Flag::Negative, result & 0x80 != 0);
+		if result == 0 {self.zero_flag = true;} else {self.zero_flag = false;}
+		if a >= b {self.carry_flag = true;} else {self.carry_flag = false;}
+		if (a & 0x80) != (b & 0x80) && (a & 0x80) != (result & 0x80) {self.overflow_flag = true;} else {self.overflow_flag = false;}
+		if result & 0x80 == 0x80 {self.negative_flag = true;} else {self.negative_flag = false;}
 	}
 	
 	fn set_sr(&mut self, value: u8) {
-		self.sr = value;
+		self.carry_flag = value & 0x01 != 0;
+		self.zero_flag = value & 0x02 != 0;
+		self.interrupt_flag = value & 0x04 != 0;
+		self.decimal_flag = value & 0x08 != 0;
+		self.break_flag = value & 0x10 != 0;
+		self.overflow_flag = value & 0x40 != 0;
+		self.negative_flag = value & 0x80 != 0;
 	}
 
 	fn set_flags(&mut self, value : u8) {
@@ -710,6 +717,17 @@ impl CPU {
 	fn pop_stack(&mut self, ram : MemoryArray) -> u8 {
 		self.sp += 1;
 		ram.read(0x0100 + self.sp as u16)
+	}
+
+
+	fn get_indexed_indirect_zeropage_x_address(&mut self, ram: MemoryArray) -> u16 {
+		let address = self.pc; 
+		self.pc = self.pc.wrapping_add(1);
+		let offset : u16 = address.wrapping_add(self.x as u16) ;
+		let low_byte = ram.read(offset) as u16;
+		let high_byte = ram.read(offset + 1) as u16;
+		let address = (high_byte << 8) | low_byte;
+		address
 	}
 
 	// 6502 Instruction Set
@@ -1028,7 +1046,7 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn pha(&mut self, mut ram : MemoryArray) {
+	fn pha(&mut self,  ram : MemoryArray) {
 		self.push_stack(ram, self.a);
 		self.pc += 1;
 	}
@@ -1648,7 +1666,7 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn dec_zero_page(&mut self, ram : MemoryArray) {
+	fn dec_zero_page(&mut self, mut ram : MemoryArray) {
 		let address: u16 = ram.read(self.pc) as u16;
 		let value: u8 = ram.read(address);
 		ram.write(address, value - 1);
@@ -1694,7 +1712,7 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn inc_zero_page(&mut self, ram : MemoryArray) {
+	fn inc_zero_page(&mut self, mut ram : MemoryArray) {
 		let address: u16 = ram.read(self.pc) as u16;
 		let value: u8 = ram.read(address);
 		ram.write(address, value + 1);
@@ -1724,7 +1742,7 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn dec_absolute(&mut self, ram : MemoryArray) {
+	fn dec_absolute(&mut self, mut ram : MemoryArray) {
 		let address: u16 = self.get_address_at_address(ram, self.pc);
 		let value: u8 = ram.read(address);
 		ram.write(address, value - 1);
@@ -1732,13 +1750,13 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn cpx_absolute_y(&mut self, ram : MemoryArray) {
-		let address: u16 = self.get_address_at_address(ram, self.pc);
-		let value: u8 = ram.read(address);
-		self.set_flags(self.x - value);
-		self.carry_flag = self.x >= value;
-		self.pc += 1;
-	}
+	// fn cpx_absolute_y(&mut self, ram : MemoryArray) {
+	// 	let address: u16 = self.get_address_at_address(ram, self.pc);
+	// 	let value: u8 = ram.read(address);
+	// 	self.set_flags(self.x - value);
+	// 	self.carry_flag = self.x >= value;
+	// 	self.pc += 1;
+	// }
 
 	fn sbc_absolute_y(&mut self, ram : MemoryArray) {
 		let address: u16 = self.get_address_at_address(ram, self.pc);
@@ -1748,13 +1766,13 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn cpx_absolute_x(&mut self, ram : MemoryArray) {
-		let address: u16 = self.get_address_at_address(ram, self.pc);
-		let value: u8 = ram.read(address);
-		self.set_flags(self.x - value);
-		self.carry_flag = self.x >= value;
-		self.pc += 1;
-	}
+	// fn cpx_absolute_x(&mut self, ram : MemoryArray) {
+	// 	let address: u16 = self.get_address_at_address(ram, self.pc);
+	// 	let value: u8 = ram.read(address);
+	// 	self.set_flags(self.x - value);
+	// 	self.carry_flag = self.x >= value;
+	// 	self.pc += 1;
+	// }
 
 	fn cmp_absolute_x(&mut self, ram : MemoryArray) {
 		let address: u16 = self.get_address_at_address(ram, self.pc);
@@ -1764,7 +1782,7 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn dec_absolute_x(&mut self, ram : MemoryArray) {
+	fn dec_absolute_x(&mut self, mut ram : MemoryArray) {
 		let address: u16 = self.get_address_at_address(ram, self.pc);
 		let value: u8 = ram.read(address);
 		ram.write(address, value - 1);
@@ -1772,13 +1790,13 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn cpy_zero_page_x(&mut self, ram : MemoryArray) {
-		let address: u16 = ram.read(self.pc) as u16;
-		let value: u8 = ram.read(address);
-		self.set_flags(self.y - value);
-		self.carry_flag = self.y >= value;
-		self.pc += 1;
-	}
+	// fn cpy_zero_page_x(&mut self, ram : MemoryArray) {
+	// 	let address: u16 = ram.read(self.pc) as u16;
+	// 	let value: u8 = ram.read(address);
+	// 	self.set_flags(self.y - value);
+	// 	self.carry_flag = self.y >= value;
+	// 	self.pc += 1;
+	// }
 
 	fn cmp_zero_page_x(&mut self, ram : MemoryArray) {
 		let address: u16 = ram.read(self.pc) as u16;
@@ -1788,7 +1806,7 @@ impl CPU {
 		self.pc += 1;
 	}
 
-	fn dec_zero_page_x(&mut self, ram : MemoryArray) {
+	fn dec_zero_page_x(&mut self, mut ram : MemoryArray) {
 		let address: u16 = ram.read(self.pc) as u16;
 		let value: u8 = ram.read(address);
 		ram.write(address, value - 1);
@@ -1810,14 +1828,14 @@ impl CPU {
 
 	
 
-	fn bne_relative(&mut self, ram : MemoryArray) {
-		let address: u16 = self.get_address_at_address(ram, self.pc);
-		if !self.zero_flag {
-			self.pc = address;
-		} else {
-			self.pc += 1;
-		}
-	}
+	// fn bne_relative(&mut self, ram : MemoryArray) {
+	// 	let address: u16 = self.get_address_at_address(ram, self.pc);
+	// 	if !self.zero_flag {
+	// 		self.pc = address;
+	// 	} else {
+	// 		self.pc += 1;
+	// 	}
+	// }
 
 	
 
