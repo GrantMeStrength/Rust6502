@@ -8,7 +8,10 @@ fn main() {
     let mut ram = memory::MemoryArray::init();
 
 	// Put some code in memory
-    ram.write(0x0000, 0);
+    ram.write(0x0000, 1);
+	ram.write(0x0001, 1);
+	ram.write(0x0002, 1);
+	ram.write(0x0003, 1);	
     println!("Value at 0x0000: {}", ram.read(0x0000));
 
 	// 6502 Implementation
@@ -21,6 +24,9 @@ fn main() {
 	cpu6502.execute(ram);
 	cpu6502.execute(ram);
 	cpu6502.execute(ram);
+	cpu6502.execute(ram);
+
+	println!("CPU: {:?}", cpu6502);
 
 	
 }
