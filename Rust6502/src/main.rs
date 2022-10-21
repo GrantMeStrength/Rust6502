@@ -21,7 +21,7 @@
 	println!("Executing code");
 
 	// loop 100 times
-	for _ in 0..100 {
+	for _ in 0..50 {
 		cpu6502.execute(); 
 		cpu6502.print_cpu_status_on_one_line();
 	}

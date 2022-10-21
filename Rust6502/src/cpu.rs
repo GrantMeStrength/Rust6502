@@ -39,7 +39,7 @@ impl Cpu {
 			a: 0,
 			x: 0,
 			y: 0,
-			sp: 0,
+			sp: 0xFE,
 			pc: 0,
 			carry_flag: false,
 			zero_flag: false,
@@ -89,6 +89,8 @@ impl Cpu {
 		println!("PC: {:#04x}", self.pc);
 		println!("Code: {:#01x}", code);
 
+		self.pc += 1;
+
 		match code {
 			0x00 => {
 				self.brk();
@@ -118,6 +120,7 @@ impl Cpu {
 				self.asl_absolute();
 			}
 			0x10 => {
+				println!("BPL");
 				self.bpl();
 			}
 			0x11 => {
@@ -143,6 +146,7 @@ impl Cpu {
 				self.asl_absolute_x();
 			}
 			0x20 => {
+				println!("JSR");
 				self.jsr();
 			}
 			0x21 => {
@@ -434,6 +438,7 @@ impl Cpu {
 			}
 
 			0xa0 => {
+				println!("LDY");
 				self.ldy_immediate();
 			}
 
@@ -586,6 +591,7 @@ impl Cpu {
 			}
 
 			0xd8 => {
+				println!("CLD");
 				self.cld();
 			}
 
@@ -721,14 +727,12 @@ impl Cpu {
 	fn get_absolute_address(&mut self) -> u16 {
 		let low_byte = self.memory.read(self.pc) as u16;
 		let high_byte = self.memory.read(self.pc + 1) as u16;
-		self.pc += 2;
 		(high_byte << 8) | low_byte
 		
 	}
 
 	fn get_relative(&mut self) -> u8 {
 		let value = self.memory.read(self.pc) as u8;
-		self.pc += 1;
 		value
 	}
 
@@ -824,32 +828,25 @@ impl Cpu {
 
 
 	fn get_zeropage(&mut self) -> u16 {
-		let address = self.memory.read(self.pc) as u16;
-		self.pc += 1;
-		address
+		self.memory.read(self.pc) as u16
 	}
 
 	fn get_zeropage_x(&mut self) -> u16 {
-		let address = self.memory.read(self.pc).wrapping_add(self.x) as u16;
-		self.pc += 1;
-		address
+		print!("zeropage broken");
+		self.memory.read(self.pc).wrapping_add(self.x) as u16
 	}
 
 	fn get_zeropage_y(&mut self) -> u16 {
-		let address = self.memory.read(self.pc).wrapping_add(self.y) as u16;
-		self.pc += 1;
-		address
+		print!("zeropage broken");
+	 	self.memory.read(self.pc).wrapping_add(self.y) as u16
 	}
 
 	fn get_immediate(&mut self) -> u8 {
-		let value = self.memory.read(self.pc );
-		self.pc += 1;
-		value
+		self.memory.read(self.pc )
 	}
 
 	fn get_indirect_x(&mut self) -> u16 {
 		let address = self.memory.read(self.pc).wrapping_add(self.x) as u16;
-		self.pc += 1;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address + 1) as u16;
 		(high_byte << 8) | low_byte
@@ -858,7 +855,6 @@ impl Cpu {
 
 	fn get_indirect_y(&mut self) -> u16 {
 		let address = self.memory.read(self.pc) as u16;
-		self.pc += 1;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address + 1) as u16;
 		let address = (high_byte << 8) | low_byte;
@@ -890,11 +886,11 @@ impl Cpu {
 
 	fn push_stack(&mut self, value : u8) {
 		self.memory.write( 0x0100 + self.sp as u16, value);
-		self.sp -= 1;
+		self.sp = self.sp.wrapping_sub(1);
 	}
 
 	fn pop_stack(&mut self) -> u8 {
-		self.sp += 1;
+		self.sp = self.sp.wrapping_add(1);
 		self.memory.read(0x0100 + self.sp as u16)
 	}
 
@@ -928,6 +924,7 @@ impl Cpu {
 		let value = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn ora_zeropage(&mut self) {
@@ -935,6 +932,7 @@ impl Cpu {
 		let value = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
+		self.sp = self.sp.wrapping_add(1);
 	}
 
 	fn asl_zeropage(&mut self) {
@@ -944,18 +942,16 @@ impl Cpu {
 		value <<= 1;
 		self.memory.write(address, value);
 		self.set_flags(value);
+		self.sp = self.sp.wrapping_add(1);
 	}
 
-	
 
 	fn php(&mut self) {
 		let sr: u8 = self.get_status_register();
 		self.push_stack(sr);
-		self.pc += 1;
 	}
 
-	
-	
+
 	fn ora_immediate(&mut self) {
 		let value: u8 = self.memory.read(self.pc);
 		self.a |= value;
@@ -968,30 +964,30 @@ impl Cpu {
 		let result: u8 = value << 1;
 		self.set_flags(result);
 		self.a = result;
-		self.pc += 1;
 	}
 
 	fn ora_absolute(&mut self) {
-		let address: u16 = self.get_address_at_address(self.pc);
+		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn asl_absolute(&mut self) {
-		let address: u16 = self.get_address_at_address(self.pc);
+		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		let result: u8 = value << 1;
 		self.set_flags(result);
 		self.memory.write(address, result);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn bpl(&mut self) {
-		let value: u8 = self.memory.read(self.pc);
+		let offset: u8 = self.memory.read(self.pc);
 		if !self.negative_flag {
-			self.pc += value as u16;
+			println!("Branching to {}", offset);
+			self.perform_relative_address(offset)
 		}
 		self.pc += 1;
 	}
@@ -1001,7 +997,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn ora_zeropage_x(&mut self) {
@@ -1009,7 +1005,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 
@@ -1019,13 +1015,12 @@ impl Cpu {
 		let result: u8 = value << 1;
 		self.set_flags(result);
 		self.memory.write(address, result);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 
 	fn clc(&mut self) {
 		self.carry_flag = false;
-		self.pc += 1;
 	}
 
 
@@ -1034,7 +1029,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 
@@ -1043,7 +1038,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn asl_absolute_x(&mut self) {
@@ -1052,14 +1047,15 @@ impl Cpu {
 		let result: u8 = value << 1;
 		self.set_flags(result);
 		self.memory.write(address, result);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
-	fn jsr(&mut self) {
-		let address: u16 = self.get_address_at_address(self.pc);
+	fn jsr(&mut self) { // should jump to ffef
+		let address: u16 = self.get_absolute_address();
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
 		self.pc = address;
+		println!("Jumping to {:x}", address);
 	}
 
 	fn and_indirect_x(&mut self) {
@@ -1067,7 +1063,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn bit_zeropage(&mut self) {
@@ -1076,7 +1072,7 @@ impl Cpu {
 		self.zero_flag = self.a & value == 0;
 		self.negative_flag = value & 0x80 != 0;
 		self.overflow_flag = value & 0x40 != 0;
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn and_zeropage(&mut self) {
@@ -1084,7 +1080,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 
@@ -1097,7 +1093,7 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn plp(&mut self) {
@@ -1109,7 +1105,6 @@ impl Cpu {
 		self.interrupt_flag = value & 0x04 != 0;
 		self.zero_flag = value & 0x02 != 0;
 		self.carry_flag = value & 0x01 != 0;
-		self.pc += 1;
 	}
 
 	fn and_immediate(&mut self) {
@@ -1125,13 +1120,12 @@ impl Cpu {
 		self.a <<= 1;
 		self.a |= carry;
 		self.set_flags(self.a);
-		self.pc += 1;
 	}
 
 	fn sta_indirect_y(&mut self) {
 		let address: u16 = self.get_indirect_y();
 		self.memory.write(address, self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 
@@ -1142,7 +1136,7 @@ impl Cpu {
 		self.zero_flag = self.a & value == 0;
 		self.negative_flag = value & 0x80 != 0;
 		self.overflow_flag = value & 0x40 != 0;
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn and_absolute(&mut self) {
@@ -1150,7 +1144,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn rol_absolute(&mut self) {
@@ -1162,15 +1156,15 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 
 
 	fn bmi(&mut self) {
-		let address: u16 = self.get_address_at_address(self.pc);
+		let offset: u8 = self.memory.read(self.pc);
 		if self.negative_flag {
-			self.pc = address;
+			self.perform_relative_address(offset);
 		} else {
 			self.pc += 1;
 		}
@@ -1182,7 +1176,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn and_zeropage_x(&mut self) {
@@ -1190,7 +1184,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn rol_zeropage_x(&mut self) {
@@ -1202,7 +1196,7 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn sec(&mut self) {
@@ -1235,7 +1229,7 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn rti(&mut self) {
@@ -1257,7 +1251,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn eor_zeropage(&mut self) {
@@ -1275,7 +1269,7 @@ impl Cpu {
 		value >>= 1;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn pha(&mut self) {
@@ -1317,7 +1311,7 @@ impl Cpu {
 		value >>= 1;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn perform_relative_address(&mut self, offset: u8) {
@@ -1341,7 +1335,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn eor_zeropage_x(&mut self) {
@@ -1359,7 +1353,7 @@ impl Cpu {
 		value >>= 1;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn cli(&mut self) {
@@ -1373,17 +1367,17 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 
 
 	fn eor_absolute_x(&mut self) {
-		let address: u16 = self.get_address_at_address(self.pc);
+		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn lsr_absolute_x(&mut self) {
@@ -1393,7 +1387,7 @@ impl Cpu {
 		value >>= 1;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn rts(&mut self) {
@@ -1418,14 +1412,14 @@ impl Cpu {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn adc_zeropage(&mut self) {
 		let address: u16 = self.get_zeropage();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn ror_zeropage(&mut self) {
@@ -1437,7 +1431,7 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn pla(&mut self) {
@@ -1471,7 +1465,7 @@ impl Cpu {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn ror_absolute(&mut self) {
@@ -1483,7 +1477,7 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn bvs(&mut self) {
@@ -1499,7 +1493,7 @@ impl Cpu {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn adc_zeropage_x(&mut self) {
@@ -1518,7 +1512,7 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn sei(&mut self) {
@@ -1530,14 +1524,14 @@ impl Cpu {
 		let address: u16 = self.get_absolute_address_y();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn adc_absolute_x(&mut self) {
 		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn ror_absolute_x(&mut self) {
@@ -1549,13 +1543,13 @@ impl Cpu {
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn sta_indirect_x(&mut self) {
 		let address: u16 = self.get_indirect_x();
 		self.memory.write(address, self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn sty_zeropage(&mut self) {
@@ -1573,7 +1567,7 @@ impl Cpu {
 	fn stx_zeropage(&mut self) {
 		let address: u16 = self.get_zeropage();
 		self.memory.write(address, self.x);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn dey(&mut self) {
@@ -1591,19 +1585,19 @@ impl Cpu {
 	fn sty_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		self.memory.write(address, self.y);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn sta_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		self.memory.write(address, self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn stx_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		self.memory.write(address, self.x);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn bcc(&mut self) {
@@ -1630,7 +1624,7 @@ impl Cpu {
 	fn stx_zeropage_y(&mut self) {
 		let address: u16 = self.get_zeropage_y();
 		self.memory.write(address, self.x);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn tya(&mut self) {
@@ -1642,13 +1636,13 @@ impl Cpu {
 	fn sta_absolute_y(&mut self) {
 		let address: u16 = self.get_absolute_address_y();
 		self.memory.write(address, self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn sta_absolute_x(&mut self) {
 		let address: u16 = self.get_absolute_address_x();
 		self.memory.write(address, self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn ldy_immediate(&mut self) {
@@ -1663,7 +1657,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn ldx_immediate(&mut self) {
@@ -1694,7 +1688,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.x = value;
 		self.set_flags(self.x);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn tay(&mut self) {
@@ -1736,7 +1730,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.y = value;
 		self.set_flags(self.y);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn lda_absolute(&mut self) {
@@ -1744,7 +1738,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn ldx_absolute(&mut self) {
@@ -1752,7 +1746,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.x = value;
 		self.set_flags(self.x);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn bcs(&mut self) {
@@ -1769,7 +1763,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn ldy_zeropage_x(&mut self) {
@@ -1777,7 +1771,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.y = value;
 		self.set_flags(self.y);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn lda_zeropage_x(&mut self) {
@@ -1785,7 +1779,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn ldx_zeropage_y(&mut self) {
@@ -1793,7 +1787,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.x = value;
 		self.set_flags(self.x);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn clv(&mut self) {
@@ -1812,7 +1806,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.y = value;
 		self.set_flags(self.y);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn lda_absolute_y(&mut self) {
@@ -1820,7 +1814,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn lda_absolute_x(&mut self) {
@@ -1828,7 +1822,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn ldx_absolute_y(&mut self) {
@@ -1836,7 +1830,7 @@ impl Cpu {
 		let value: u8 = self.memory.read(address);
 		self.x = value;
 		self.set_flags(self.x);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn cpy_immediate(&mut self) {
@@ -1849,7 +1843,7 @@ impl Cpu {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn cpy_zeropage(&mut self) {
@@ -1872,13 +1866,12 @@ impl Cpu {
 		let result: u8 = value.wrapping_sub(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn iny(&mut self) {
 		self.y = self.y.wrapping_add(1);
 		self.set_flags(self.y);
-		self.pc += 1;
 	}
 
 	fn cmp_immediate(&mut self) {
@@ -1897,14 +1890,14 @@ impl Cpu {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.y, value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn cmp_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn dec_absolute(&mut self) {
@@ -1913,7 +1906,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_sub(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	// fn bne_relative(&mut self) {
@@ -1926,9 +1919,9 @@ impl Cpu {
 	// }
 
 	fn bne(&mut self) {
-		let value: u8 = self.get_immediate();
+		let offset: u8 = self.get_immediate();
 		if !self.zero_flag {
-			self.pc = self.pc.wrapping_add(value as u16);
+			self.pc = self.pc.wrapping_add(offset as u16);
 		} else {
 			self.pc += 1;
 		}
@@ -1938,7 +1931,7 @@ impl Cpu {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn cmp_zeropage_x(&mut self) {
@@ -1954,7 +1947,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_sub(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn cld(&mut self) {
@@ -1966,14 +1959,14 @@ impl Cpu {
 		let address: u16 = self.get_absolute_address_y();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn cmp_absolute_x(&mut self) {
 		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn dec_absolute_x(&mut self) {
@@ -1982,7 +1975,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_sub(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn cpx_immediate(&mut self) {
@@ -1995,7 +1988,7 @@ impl Cpu {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn cpx_zeropage(&mut self) {
@@ -2009,7 +2002,7 @@ impl Cpu {
 		let address: u16 = self.get_zeropage();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 	
 
@@ -2019,7 +2012,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_add(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn inx(&mut self) {
@@ -2042,14 +2035,14 @@ impl Cpu {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.x, value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn sbc_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn inc_absolute(&mut self) {
@@ -2058,7 +2051,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_add(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	// fn beq_relative(&mut self) {
@@ -2074,7 +2067,7 @@ impl Cpu {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc += 1;
+		self.sp = self.sp.wrapping_add(2);
 	}
 
 	fn sbc_zeropage_x(&mut self) {
@@ -2090,7 +2083,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_add(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn sed(&mut self) {
@@ -2102,14 +2095,14 @@ impl Cpu {
 		let address: u16 = self.get_absolute_address_y();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn sbc_absolute_x(&mut self) {
 		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 	fn inc_absolute_x(&mut self) {
@@ -2118,7 +2111,7 @@ impl Cpu {
 		let result: u8 = value.wrapping_add(1);
 		self.memory.write(address, result);
 		self.set_flags(result);
-		self.pc += 1;
+		self.pc += 2;
 	}
 
 

@@ -32,7 +32,7 @@ impl MemoryArray {
 
 
         if address == 0xd012 {
-            println!("Apple Monitor Printing {}", value as char);
+            println!("Apple Monitor Printing {}", (value & 0x7f) as char);
         }
 
 
