@@ -29,6 +29,14 @@ impl MemoryArray {
    }
 
    pub fn write(&mut self, address : u16, value : u8) {
+
+
+        if address == 0xd012 {
+            println!("Apple Monitor Printing {}", value as char);
+        }
+
+
+
        if !self.memory[address as usize].readonly {
            self.memory[address as usize].value = value;
        }
