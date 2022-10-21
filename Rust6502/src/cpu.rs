@@ -46,7 +46,9 @@ impl CPU {
 	}
 
 	pub fn init() -> CPU {
+		println!("CPU: Initializing");
 		let cpu6502 : CPU = CPU::new();
+		println!("CPU: Initialized");
 		cpu6502
 	}
 
@@ -69,7 +71,11 @@ impl CPU {
 	}
 
 	pub fn execute(&mut self, ram : MemoryArray) {
+		
 		let code: u8 = ram.read(self.pc);
+
+		println!("Code: {}", code);
+
 		match code {
 			0x00 => {
 				self.brk(ram);
