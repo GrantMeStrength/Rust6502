@@ -30,12 +30,10 @@ impl MemoryArray {
 
    pub fn write(&mut self, address : u16, value : u8) {
 
-
+        // Apple WozMon print a character to the screen
         if address == 0xd012 {
-            println!("Apple Monitor Printing {}", (value & 0x7f) as char);
+            print!("{}", (value & 0x7f) as char);
         }
-
-
 
        if !self.memory[address as usize].readonly {
            self.memory[address as usize].value = value;

@@ -86,8 +86,8 @@ impl Cpu {
 		
 		let code: u8 = self.memory.read(self.pc);
 		
-		println!("PC: {:#04x}", self.pc);
-		println!("Code: {:#01x}", code);
+		//println!("PC: {:#04x}", self.pc);
+		//println!("Code: {:#01x}", code);
 
 		self.pc += 1;
 
@@ -120,7 +120,7 @@ impl Cpu {
 				self.asl_absolute();
 			}
 			0x10 => {
-				println!("BPL");
+				//println!("BPL");
 				self.bpl();
 			}
 			0x11 => {
@@ -146,7 +146,7 @@ impl Cpu {
 				self.asl_absolute_x();
 			}
 			0x20 => {
-				println!("JSR");
+				//println!("JSR");
 				self.jsr();
 			}
 			0x21 => {
@@ -438,7 +438,7 @@ impl Cpu {
 			}
 
 			0xa0 => {
-				println!("LDY");
+				//println!("LDY");
 				self.ldy_immediate();
 			}
 
@@ -591,7 +591,7 @@ impl Cpu {
 			}
 
 			0xd8 => {
-				println!("CLD");
+				//println!("CLD");
 				self.cld();
 			}
 
@@ -986,7 +986,7 @@ impl Cpu {
 	fn bpl(&mut self) {
 		let offset: u8 = self.memory.read(self.pc);
 		if !self.negative_flag {
-			println!("Branching to {}", offset);
+			//println!("Branching to {}", offset);
 			self.perform_relative_address(offset)
 		}
 		self.pc += 1;
@@ -1055,7 +1055,7 @@ impl Cpu {
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
 		self.pc = address;
-		println!("Jumping to {:x}", address);
+		//println!("Jumping to {:x}", address);
 	}
 
 	fn and_indirect_x(&mut self) {
