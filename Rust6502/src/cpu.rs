@@ -86,7 +86,7 @@ impl Cpu {
 
 	pub fn reset(&mut self) {
 		*self = Cpu::new();
-		self.pc = 0xff00; // Start at the start of WozMon
+		self.pc = 0xe000; // Start at apple basic
 	}
 
 	// Apple-1 hardware
@@ -97,6 +97,15 @@ impl Cpu {
 		self.memory.write(0xd012, keypress & 0x5f);
 	}
 
+
+	pub fn execute_specific_instruction(&mut self, code : u8, mem1: u8, mem2 : u8)
+	{
+		self.pc = 0;
+		self.memory.write(0, code);
+		self.memory.write(1, mem1);
+		self.memory.write(2, mem2);
+		self.execute();
+	}
 	
 
 	// The call that causes the CPU to execute one instruction.
@@ -704,7 +713,7 @@ impl Cpu {
 			}
 
 			_ => {
-				panic!("Invalid opcode: {:x}", code);
+				//panic!("Invalid opcode: {:x}", code);
 			}
 			
 		}
@@ -805,7 +814,9 @@ impl Cpu {
 
 		} else {
 
-			total = 0xffff & register_a as u16 - value as u16 - flag_c_invert as u16;
+
+			total = register_a.wrapping_sub(value as u8).wrapping_sub(flag_c_invert as u8) as u16;
+			//total = 0xffff & register_a as u16 - value as u16 - flag_c_invert as u16;
 
 			if total > 0xff {
 				self.carry_flag = false;
@@ -882,7 +893,7 @@ impl Cpu {
 	fn get_indirect(&mut self) -> u16 {
 		let address = self.get_absolute_address();
 		let low_byte = self.memory.read(address) as u16;
-		let high_byte = self.memory.read(address + 1) as u16;
+		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
 		(high_byte << 8) | low_byte
 		
 	}
@@ -1334,7 +1345,7 @@ impl Cpu {
 			address = self.pc.wrapping_sub(t as u16);
 		}
 
-		self.pc = address + 1;
+		self.pc = address.wrapping_add(1);
 	}
 
 	fn bvc(&mut self) {
@@ -1406,11 +1417,9 @@ impl Cpu {
 	}
 
 	fn rts(&mut self) {
-		let addressL: u16 = self.pop_stack() as u16;
-		let addressH: u16 = self.pop_stack() as u16;
-		let address = ((addressH << 8) | addressL).wrapping_add(2);
-
-		//println!("Returning from subroutine to address: {:04X}", address);
+		let address_l: u16 = self.pop_stack() as u16;
+		let address_h: u16 = self.pop_stack() as u16;
+		let address = ((address_h << 8) | address_l).wrapping_add(2);
 		self.pc = address;
 	}
 
@@ -1588,7 +1597,7 @@ impl Cpu {
 	}
 
 	fn dey(&mut self) {
-		self.y -= 1;
+		self.y = self.y.wrapping_sub(1);
 		self.set_flags(self.y);
 	}
 

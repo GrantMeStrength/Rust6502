@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 termion = "1.5.2"
+rand = "0.8.3"
 
