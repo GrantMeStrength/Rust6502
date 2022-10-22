@@ -30,6 +30,14 @@ impl MemoryArray {
 
    // The hard-working 'give me a byte at this address' function
    pub fn read(&self, address : u16) -> u8 {
+	if address == 0xd012 {
+		return 0x00
+	}
+
+	if address == 0xd011 {
+		return 0x00
+	}
+
        self.memory[address as usize].value
    }
 
