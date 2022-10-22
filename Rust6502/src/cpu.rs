@@ -1,5 +1,5 @@
 // 
-// 6502 Implementation
+// 6502 CPU
 //
 
 use crate::memory::MemoryArray;
@@ -22,7 +22,7 @@ pub struct Cpu {
 	pub unused_flag: bool,
 	// State
 	 pub decimal_mode : bool,
-	 // self.memory
+	 // Memory - I found it helped the design a LOT of memory was considered part of the CPU.
 	pub memory : MemoryArray,
 }
 
@@ -39,7 +39,7 @@ impl Cpu {
 			a: 0,
 			x: 0,
 			y: 0,
-			sp: 0xFE,
+			sp: 0xFE, // The default StackPointer. This works for now.
 			pc: 0,
 			carry_flag: false,
 			zero_flag: false,
@@ -54,13 +54,7 @@ impl Cpu {
 		}
 	}
 
-	// pub fn init() -> cpu {
-	// 	println!("Cpu: Initializing");
-	// 	let cpu6502 : cpu = cpu::new();
-	// 	println!("Cpu: Initialized");
-	// 	cpu6502
-	// }
-
+	// Some helper functions.
 
 
 	pub fn load_data_into_memory(&mut self, address : u16, data : Vec<u8>) {
@@ -75,12 +69,16 @@ impl Cpu {
 		println!("A: {:X} X: {:X} Y: {:X} SP: {:X} PC: {:X} CF: {} ZF: {} OF: {} DF: {} IF: {} NF: {} BF: {} UF: {} DM: {}", self.a, self.x, self.y, self.sp, self.pc, self.carry_flag, self.zero_flag, self.overflow_flag, self.decimal_flag, self.interrupt_flag, self.negative_flag, self.break_flag, self.unused_flag, self.decimal_mode);
 	}
 
-	
+	// Some CPU actions.
 
 	pub fn reset(&mut self) {
 		*self = Cpu::new();
 		self.pc = 0xff00; // Start at the start of WozMon
 	}
+
+
+	// The call that causes the CPU to execute one instruction.
+	// It's a giant switch.
 
 	pub fn execute(&mut self) {
 		
@@ -694,6 +692,10 @@ impl Cpu {
 	}
 
 	
+
+	// More helpers for getting addresses, doing math etc.
+	// NB not proven to work just yet.
+
 	fn compare(&mut self, a: u8, b: u8) {
 		let result = a.wrapping_sub(b);
 		if result == 0 {self.zero_flag = true;} else {self.zero_flag = false;}
@@ -702,15 +704,6 @@ impl Cpu {
 		if result & 0x80 == 0x80 {self.negative_flag = true;} else {self.negative_flag = false;}
 	}
 	
-	// fn set_sr(&mut self, value: u8) {
-	// 	self.carry_flag = value & 0x01 != 0;
-	// 	self.zero_flag = value & 0x02 != 0;
-	// 	self.interrupt_flag = value & 0x04 != 0;
-	// 	self.decimal_flag = value & 0x08 != 0;
-	// 	self.break_flag = value & 0x10 != 0;
-	// 	self.overflow_flag = value & 0x40 != 0;
-	// 	self.negative_flag = value & 0x80 != 0;
-	// }
 
 	fn set_flags(&mut self, value : u8) {
 		self.zero_flag = value == 0;
@@ -740,8 +733,7 @@ impl Cpu {
 		let  total : u16 ;
 		let mut bcd_low : u16 ;
 		let mut bcd_high : u16 ;
-		//let mut bcd_total : u16 ;
-		//let mut signed_total : u16 = 0;
+
 		let operand0 : u8 ;
 		let operand1 : u8 ;
 		let result : u8 ;
@@ -808,13 +800,7 @@ impl Cpu {
 		self.set_flags(self.a);
 	}
 
-	// fn subtract(&mut self, a: u8, b: u8) {
-	// 	let result = a.wrapping_sub(b);
-	// 	if result == 0 {self.zero_flag = true;} else {self.zero_flag = false;}
-	// 	if a >= b {self.carry_flag = true;} else {self.carry_flag = false;}
-	// 	if (a & 0x80) != (b & 0x80) && (a & 0x80) != (result & 0x80) {self.overflow_flag = true;} else {self.overflow_flag = false;}
-	// 	if result & 0x80 == 0x80 {self.negative_flag = true;} else {self.negative_flag = false;}
-	// }
+	
 
 	fn get_absolute_address_x(&mut self) -> u16 {
 		 self.get_absolute_address().wrapping_add(self.x as u16)
@@ -895,22 +881,12 @@ impl Cpu {
 	}
 
 
-	// fn get_indexed_indirect_zeropage_x_address(&mut self, ram: self.memory) -> u16 {
-	// 	let address = self.pc; 
-	// 	self.pc = self.pc.wrapping_add(1);
-	// 	let offset : u16 = address.wrapping_add(self.x as u16) ;
-	// 	let low_byte = self.memory.read(offset) as u16;
-	// 	let high_byte = self.memory.read(offset + 1) as u16;
-	// 	let address = (high_byte << 8) | low_byte;
-	// 	return address
-	// }
-
-	// fn get_indexed_indirect_zeropage_x(&mut self, ram: self.memory) -> u8 {
-	// 	let address = self.get_indexed_indirect_zeropage_x_address();
-	// 	self.memory.read(address)
-	// }
 
 	// 6502 Instruction Set
+	// Again not yet proven, there will be bugs. I need to test it.
+	// Likely issues are around the addressing, math and PC incrementing.
+
+
 
 	fn brk(&mut self) {
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
@@ -2113,46 +2089,6 @@ impl Cpu {
 		self.set_flags(result);
 		self.pc += 2;
 	}
-
-
-	
-	// fn get_flags(&self) -> u8 {
-	// 	let mut flags: u8 = 0;
-	// 	if self.carry_flag {
-	// 		flags |= 0x01;
-	// 	}
-	// 	if self.zero_flag {
-	// 		flags |= 0x02;
-	// 	}
-	// 	if self.interrupt_flag {
-	// 		flags |= 0x04;
-	// 	}
-	// 	if self.decimal_flag {
-	// 		flags |= 0x08;
-	// 	}
-	// 	if self.break_flag {
-	// 		flags |= 0x10;
-	// 	}
-	// 	if self.overflow_flag {
-	// 		flags |= 0x40;
-	// 	}
-	// 	if self.negative_flag {
-	// 		flags |= 0x80;
-	// 	}
-	// 	flags
-	// }
-
-	// fn set_flags_from_byte(&mut self, flags: u8) {
-	// 	self.carry_flag = flags & 0x01 != 0;
-	// 	self.zero_flag = flags & 0x02 != 0;
-	// 	self.interrupt_flag = flags & 0x04 != 0;
-	// 	self.decimal_flag = flags & 0x08 != 0;
-	// 	self.break_flag = flags & 0x10 != 0;
-	// 	self.overflow_flag = flags & 0x40 != 0;
-	// 	self.negative_flag = flags & 0x80 != 0;
-	// }
-
-	
 
 
 
