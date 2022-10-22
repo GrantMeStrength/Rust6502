@@ -1,23 +1,23 @@
 
  mod memory;
  mod cpu;
- mod device_state;
- use device_query::{DeviceQuery, DeviceState, Keycode};
 
+ use cursive::views::{Dialog, TextView};
+ 
+ pub fn main() {
 
- fn main() {
+	let mut siv = cursive::default();
 
-	let device_state = DeviceState::new();
+	siv.add_layer(Dialog::around(TextView::new("Hello Dialog!"))
+	.title("Cursive")
+	.button("Quit", |s| s.quit()));
 
-	let keys: Vec<Keycode> = device_state.get_keys();
-        for key in keys.iter() {
-            println!("Pressed key: {:?}", key);
-        }
+// Starts the event loop.
+siv.run();
 
 
 
     println!("6502 Startup");
-
 
 	// 6502 Implementation
 	println!("6502 initializer");
@@ -35,12 +35,11 @@
 	// loop 100 times
 	for _ in 0..500 {
 		cpu6502.execute(); 
-		//cpu6502.print_cpu_status_on_one_line();
 	}
+
 	println!("\n\n\n\n\n\n");
 	cpu6502.print_cpu_status_on_one_line();
-	
+
 	println!("END");
-	
-	
+
 }
