@@ -2,7 +2,16 @@
  mod memory;
  mod cpu;
 
+ use std::io;
+ use std::io::Write;
+ use std::thread;
+ use std::time;
+ 
+ use termion;
+ use termion::input::TermRead;
+ use termion::raw::IntoRawMode;
 
+ 
  pub fn main()  {
 
 	// The 6502 side is all well and good, but it's more interesting when it can 
@@ -11,6 +20,12 @@
 	// terminal window.  So, we need to use a library that can do this for us.
 	// I'm looking for the right one.  
   
+	 // Set terminal to raw mode to allow reading stdin one key at a time
+	 let mut stdout = io::stdout().into_raw_mode().unwrap();
+
+	 // Use asynchronous stdin
+	 let mut stdin = termion::async_stdin().keys();
+
 
 	println!("6502 Startup");
 
@@ -29,10 +44,43 @@
 	
 
 	// Keep doing this until you're bored.
+	loop {
+
+		let input = stdin.next();
+
+	 // If a key was pressed
+	 if let Some(Ok(key)) = input {
+		match key {
+			// Exit if 'q' is pressed
+			termion::event::Key::Char('q') => break,
+			// Else print the pressed key
+			_ => {
+				write!(
+					stdout,
+					"{}{}Key pressed: {:?}",
+					termion::clear::All,
+					termion::cursor::Goto(1, 1),
+					key
+				)
+				.unwrap();
+
+				stdout.lock().flush().unwrap();
+			}
+		}
+	}
+	thread::sleep(time::Duration::from_millis(50));
+
 	cpu6502.execute(); 
+	// write!(stdout,"plop",
+	// termion::cursor::Goto(10, 1), "plop"
+	// //cpu6502.print_cpu_status_on_one_line();
+	// )
+}
+
+	
 
 
-	cpu6502.print_cpu_status_on_one_line();
+	
 
 	println!("Program ended");
 
