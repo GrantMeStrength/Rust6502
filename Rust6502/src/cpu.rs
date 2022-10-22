@@ -76,6 +76,13 @@ impl Cpu {
 		self.pc = 0xff00; // Start at the start of WozMon
 	}
 
+	// Apple-1 hardware
+
+	pub fn set_keypress(&mut self, keypress : u8) {
+		self.memory.write(0xd012, keypress);
+	}
+
+	
 
 	// The call that causes the CPU to execute one instruction.
 	// It's a giant switch.
@@ -144,7 +151,6 @@ impl Cpu {
 				self.asl_absolute_x();
 			}
 			0x20 => {
-				//println!("JSR");
 				self.jsr();
 			}
 			0x21 => {

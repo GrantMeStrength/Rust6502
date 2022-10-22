@@ -51,38 +51,42 @@
 	// Keep doing this until you're bored.
 	loop {
 
+		// Check for keypress 
 		let input = stdin.next();
 
 	 // If a key was pressed
 	 if let Some(Ok(key)) = input {
 		match key {
-			// Exit if 'q' is pressed
-			termion::event::Key::Char('q') => break,
-			// Else print the pressed key
+			// Exit if 'Esc' is pressed
+			termion::event::Key::Esc => break,
+			// Else send the pressed key to the right memory location
 			_ => {
-				write!(
-					stdout,
-					"{}{}Key pressed: {:?}",
-					termion::clear::All,
-					termion::cursor::Goto(1, 1),
-					key
-				)
-				.unwrap();
+				let key_S : String = format!("{:?}", key);
+				cpu6502.set_keypress(key_S.bytes().nth(6).unwrap());
+				// write!(
+				// 	stdout,
+				// 	"{}{}Key pressed: {:?}",
+				// 	termion::clear::All,
+				// 	termion::cursor::Goto(1, 1),
+				// 	key
+				// )
+				// .unwrap();
 
-				stdout.lock().flush().unwrap();
+				//stdout.lock().flush().unwrap();
 			}
 		}
 	}
 	thread::sleep(time::Duration::from_millis(50));
 
+	// Keep running the code
 	cpu6502.execute(); 
 
-	 write!(
-	 	stdout, "{}{}",
-		 termion::clear::All,
-		 termion::cursor::Goto(1, 15),
-	 ).unwrap();
-	 cpu6502.print_cpu_status_on_one_line();
+	//  write!(
+	//  	stdout, "{}{}",
+	// 	 termion::clear::All,
+	// 	 termion::cursor::Goto(1, 15),
+	//  ).unwrap();
+	//  cpu6502.print_cpu_status_on_one_line();
 }
 
 	
