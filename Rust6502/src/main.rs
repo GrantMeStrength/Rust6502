@@ -42,6 +42,11 @@
 
 	println!("Executing code");
 	
+	write!(
+		stdout, "{}{}",
+		termion::clear::All,
+		termion::cursor::Goto(1, 1),
+	).unwrap();
 
 	// Keep doing this until you're bored.
 	loop {
@@ -71,10 +76,13 @@
 	thread::sleep(time::Duration::from_millis(50));
 
 	cpu6502.execute(); 
-	// write!(stdout,"plop",
-	// termion::cursor::Goto(10, 1), "plop"
-	// //cpu6502.print_cpu_status_on_one_line();
-	// )
+
+	 write!(
+	 	stdout, "{}{}",
+		 termion::clear::All,
+		 termion::cursor::Goto(1, 15),
+	 ).unwrap();
+	 cpu6502.print_cpu_status_on_one_line();
 }
 
 	
