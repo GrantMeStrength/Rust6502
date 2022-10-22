@@ -16,7 +16,7 @@
  pub fn main()  {
 
 	// If debug, no interactive terminal
-	let debug = true;
+	let debug = false;
 
 
 
@@ -43,13 +43,15 @@
 
 
 
-	if debug {
+	
 
 		write!(
 			stdout, "{}{}",
 			termion::clear::All,
 			termion::cursor::Goto(1, 1),
 		).unwrap();
+	
+		if debug {
 
 	// repeat 100 times
 	let mut cur_y = 0;
@@ -70,14 +72,13 @@
 			cur_y = 0;
 		}
 
-		thread::sleep(time::Duration::from_millis(50));
+		thread::sleep(time::Duration::from_millis(1));
 
 	}
 
 	std::process::exit(0);
 }
 
-	
 
 	write!(
 		stdout, "{}{}",
@@ -95,26 +96,18 @@
 	 //If a key was pressed
 	 if let Some(Ok(key)) = input {
 		match key {
+			
 			// Exit if 'Esc' is pressed
 			termion::event::Key::Esc => break,
+
 			// Else send the pressed key to the right memory location
 			_ => {
 				let key_S : String = format!("{:?}", key);
 				cpu6502.set_keypress(key_S.bytes().nth(6).unwrap());
-				// write!(
-				// 	stdout,
-				// 	"{}{}Key pressed: {:?}",
-				// 	termion::clear::All,
-				// 	termion::cursor::Goto(1, 1),
-				// 	key
-				// )
-				// .unwrap();
-
-				//stdout.lock().flush().unwrap();
 			}
 		}
 	}
-	thread::sleep(time::Duration::from_millis(50));
+	//thread::sleep(time::Duration::from_millis(50));
 
 	//Keep running the code
 	cpu6502.execute(); 
@@ -127,15 +120,11 @@
 		 termion::clear::All,
 		 termion::cursor::Goto(1, 15),
 	 ).unwrap();
-	 //cpu6502.print_cpu_status_on_one_line();
+	 cpu6502.print_cpu_status_on_one_line();
 
 	}
 
 	
-
-
-	
-
 	println!("Program ended");
 
 }

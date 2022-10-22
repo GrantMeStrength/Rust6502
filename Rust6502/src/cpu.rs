@@ -79,7 +79,7 @@ impl Cpu {
 		if self.zero_flag { print!("Z"); } else { print!("z"); }
 		if self.carry_flag { println!("C"); } else { println!("c"); }
 		
-		self.cycle = self.cycle + 1;
+		self.cycle = self.cycle.wrapping_add(1);
 	}
 
 	// Some CPU actions.
@@ -92,7 +92,9 @@ impl Cpu {
 	// Apple-1 hardware
 
 	pub fn set_keypress(&mut self, keypress : u8) {
-		self.memory.write(0xd012, keypress);
+		self.memory.apple_key_ready = true;
+		self.memory.apple_key_char = keypress & 0x7f;
+		self.memory.write(0xd012, keypress & 0x5f);
 	}
 
 	
@@ -739,7 +741,7 @@ impl Cpu {
 		self.negative_flag = value & 0x80 != 0;
 	}
 
-	fn get_address_at_address(&self, address : u16) -> u16 {
+	fn get_address_at_address(&mut self, address : u16) -> u16 {
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address + 1) as u16;
 		(high_byte << 8) | low_byte
@@ -991,10 +993,10 @@ impl Cpu {
 	fn bmi(&mut self) {
 		let offset: u8 = self.memory.read(self.pc);
 		if self.negative_flag {
-			print!("  BMI Branched by {:02x}" ,offset);
+			//print!("  BMI Branched by {:02x}" ,offset);
 			self.perform_relative_address(offset);
 		} else {
-			print!("  BMI -");
+			//print!("  BMI -");
 			self.pc += 1;
 		}
 	}
@@ -1002,11 +1004,11 @@ impl Cpu {
 	fn bpl(&mut self) {
 		let offset: u8 = self.memory.read(self.pc);
 		if !self.negative_flag {
-			print!("  BPL Branched by {:02x}" ,offset);
+			//print!("  BPL Branched by {:02x}" ,offset);
 			self.perform_relative_address(offset)
 		}
 		else {
-			print!("  BPL -");
+			//print!("  BPL -");
 			self.pc += 1;
 		}
 	}

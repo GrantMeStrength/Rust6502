@@ -16,11 +16,14 @@
 #[derive(Debug, Copy, Clone)]
 pub struct MemoryArray {
      memory : [MemoryCell; 65536],
+	 pub apple_key_ready : bool,
+	 pub apple_key_char : u8,
 }
 
 impl MemoryArray {
+
     fn new() -> MemoryArray {
-        MemoryArray { memory: [MemoryCell { value: 0, readonly: false }; 65536] } // Zero it.
+        MemoryArray { memory: [MemoryCell { value: 0, readonly: false }; 65536] , apple_key_ready : false, apple_key_char : 0} // Zero it.
     }
 
     pub fn init() -> MemoryArray {
@@ -29,13 +32,26 @@ impl MemoryArray {
    }
 
    // The hard-working 'give me a byte at this address' function
-   pub fn read(&self, address : u16) -> u8 {
-	if address == 0xd012 {
+   pub fn read(&mut self, address : u16) -> u8 {
+	
+	// Apple specific keyboard input
+
+	if address == 0xd012  ||  address == 0xD0F2 {
 		return 0x00
 	}
 
+	if address == 0xd010 {
+		self.apple_key_ready = false;
+		return self.apple_key_char | 0x80;
+	}
+	
+
 	if address == 0xd011 {
-		return 0x00
+		if self.apple_key_ready {
+			return 0x80
+		} else {
+			return 0x00
+		}
 	}
 
        self.memory[address as usize].value
