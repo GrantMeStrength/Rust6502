@@ -86,7 +86,7 @@ impl Cpu {
 
 	pub fn reset(&mut self) {
 		*self = Cpu::new();
-		self.pc = 0x0000; // Start at software i.e. WozMon or BASIC
+		self.pc = 0xe000; // Start at software i.e. WozMon or BASIC
 	}
 
 	// Apple-1 hardware
@@ -910,7 +910,7 @@ impl Cpu {
 
 	fn push_stack(&mut self, value : u8) {
 		self.memory.write( 0x0100 + self.sp as u16, value);
-		print!("    Stored {:02x} on stack at {:02x}", value, self.sp);
+		//print!("    Stored {:02x} on stack at {:02x}", value, self.sp);
 		self.sp = self.sp.wrapping_sub(1);
 	}
 
@@ -928,7 +928,7 @@ impl Cpu {
 
 
 	fn brk(&mut self) {
-		print!("brk");
+		//print!("brk");
 		self.pc = self.pc.wrapping_sub(1);
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
@@ -981,7 +981,7 @@ impl Cpu {
 		let result: u8 = self.a << 1;
 		self.carry_flag = ((self.a & 128) == 128);
 		self.a = result;
-		print!("asl_accumulator {:02x}", self.a);	
+		//print!("asl_accumulator {:02x}", self.a);	
 	}
 
 	fn ora_absolute(&mut self) {
@@ -1092,9 +1092,9 @@ impl Cpu {
 		self.pc = self.pc.wrapping_add(1);
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
-		print!("Call {:04x} return to {:04x}   ", address, self.pc);
+		//print!("Call {:04x} return to {:04x}   ", address, self.pc);
 		self.pc = address.wrapping_add(0);
-		print!("PC is now  {:04x} next code to load  {:02x}", self.pc, self.memory.read(self.pc));
+		//print!("PC is now  {:04x} next code to load  {:02x}", self.pc, self.memory.read(self.pc));
 	}
 
 	fn and_indirect_x(&mut self) {
@@ -1732,7 +1732,7 @@ impl Cpu {
 		self.a = value;
 		self.set_flags(self.a);
 		self.pc = self.pc.wrapping_add(1);
-		print!("LDA IMMED: {:x}", value);
+		//print!("LDA IMMED: {:x}", value);
 	}
 
 	fn txs(&mut self) {
@@ -1768,7 +1768,7 @@ impl Cpu {
 		self.a = value;
 		self.set_flags(self.a);
 		self.pc = self.pc.wrapping_add(2);
-		print!("LDA ABSOLUTE: {:x} {:x}", address, value);
+		//print!("LDA ABSOLUTE: {:x} {:x}", address, value);
 	}
 
 	fn ldx_absolute(&mut self) {

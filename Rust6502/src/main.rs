@@ -17,7 +17,7 @@
  pub fn main()  {
 
 	// If debug, no interactive terminal
-	let debug = true;
+	let debug = false;
 
 
 
