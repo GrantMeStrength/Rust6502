@@ -16,14 +16,18 @@
 #[derive(Debug, Copy, Clone)]
 pub struct MemoryArray {
      memory : [MemoryCell; 65536],
+	 pub apple_output_char_waiting : bool,
+	 pub apple_output_char : u8,
 	 pub apple_key_ready : bool,
-	 pub apple_key_char : u8,
+	 pub apple_key_value : u8,
 }
 
 impl MemoryArray {
 
     fn new() -> MemoryArray {
-        MemoryArray { memory: [MemoryCell { value: 0, readonly: false }; 65536] , apple_key_ready : false, apple_key_char : 0} // Zero it.
+        MemoryArray { memory: [MemoryCell { value: 0, readonly: false }; 65536] ,
+		apple_output_char_waiting : false, apple_output_char : 0,
+		 apple_key_ready : false, apple_key_value : 0} // Zero it.
     }
 
     pub fn init() -> MemoryArray {
@@ -41,8 +45,19 @@ impl MemoryArray {
 	}
 
 	if address == 0xd010 {
-		self.apple_key_ready = false;
-		return self.apple_key_char | 0x80;
+		if self.apple_key_value >= 0x61 && self.apple_key_value <= 0x7A
+		{
+			self.apple_key_value = self.apple_key_value & 0x5f;
+		}
+			if self.apple_key_value == 10
+			{
+				self.apple_key_value = 13;
+			}
+			
+			self.apple_key_ready = false;
+			
+			return self.apple_key_value | 0x80;
+		
 	}
 	
 
@@ -62,6 +77,8 @@ impl MemoryArray {
 
         // Apple WozMon print a character to the screen
         if address == 0xd012 {
+			self.apple_output_char_waiting = true;
+			self.apple_output_char = value & 0x7f;
             print!("{}", (value & 0x7f) as char);
         }
 
