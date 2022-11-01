@@ -898,7 +898,6 @@ impl Cpu6502 {
 		
 	}
 
-
 	fn get_zeropage(&mut self) -> u16 {
 		self.memory.read(self.pc) as u16
 	}
@@ -908,7 +907,6 @@ impl Cpu6502 {
 	}
 
 	fn get_zeropage_y(&mut self) -> u16 {
-		//print!("zeropage broken");
 	 	self.memory.read(self.pc).wrapping_add(self.y) as u16
 	}
 
@@ -928,10 +926,7 @@ impl Cpu6502 {
 		let address = self.memory.read(self.pc).wrapping_add(self.y) as u16;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
-		(high_byte << 8) | low_byte
-		//let address = (high_byte << 8) | low_byte;
-		//address.wrapping_add(self.y as u16)
-		
+		(high_byte << 8) | low_byte		
 	}
 
 	fn get_indirect(&mut self) -> u16 {
@@ -1002,8 +997,8 @@ impl Cpu6502 {
 	fn asl_zeropage(&mut self) {
 		let address = self.get_zeropage();
 		let mut value = self.memory.read(address);
-		self.carry_flag = value & 0x80 != 0;
 		value <<= 1;
+		self.carry_flag = (value & 128) == 128;
 		self.memory.write(address, value);
 		self.set_flags(value);
 		self.pc = self.pc.wrapping_add(1);
@@ -1041,6 +1036,7 @@ impl Cpu6502 {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
 		let result: u8 = value << 1;
+		self.carry_flag = (value & 128) == 128;
 		self.set_flags(result);
 		self.memory.write(address, result);
 		self.pc = self.pc.wrapping_add(2);
@@ -1054,7 +1050,6 @@ impl Cpu6502 {
 	fn bmi(&mut self) {
 		let offset: u8 = self.memory.read(self.pc);
 		if self.negative_flag {
-			//print!("  BMI Branched by {:02x}" ,offset);
 			self.perform_relative_address(offset);
 		} else {
 			self.pc = self.pc.wrapping_add(1);
@@ -1087,21 +1082,19 @@ impl Cpu6502 {
 		self.pc = self.pc.wrapping_add(1);
 	}
 
-
 	fn asl_zeropage_x(&mut self) {
 		let address: u16 = self.get_zeropage_x();
 		let value: u8 = self.memory.read(address);
 		let result: u8 = value << 1;
 		self.set_flags(result);
+		self.carry_flag = (value & 128) == 128;
 		self.memory.write(address, result);
 		self.pc = self.pc.wrapping_add(1);
 	}
 
-
 	fn clc(&mut self) {
 		self.carry_flag = false;
 	}
-
 
 	fn ora_absolute_y(&mut self) {
 		let address: u16 = self.get_absolute_address_y();
@@ -1124,6 +1117,7 @@ impl Cpu6502 {
 		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
 		let result: u8 = value << 1;
+		self.carry_flag = (value & 128) == 128;
 		self.set_flags(result);
 		self.memory.write(address, result);
 		self.pc = self.pc.wrapping_add(2);

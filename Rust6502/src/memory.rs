@@ -46,7 +46,7 @@ impl MemoryArray {
 
 	if address == 0xd010 {
 
-		println!("Key pressed: {}",self.apple_key_value);
+		//println!("Key pressed: {}",self.apple_key_value);
 
 		if self.apple_key_value == 92 {
 			self.apple_key_value = 10
@@ -61,9 +61,7 @@ impl MemoryArray {
 				self.apple_key_value = 13;
 			}
 
-			
 			self.apple_key_ready = false;
-
 			
 			return self.apple_key_value | 0x80;
 		
