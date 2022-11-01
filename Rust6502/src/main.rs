@@ -18,7 +18,7 @@
  pub fn main()  {
 
 	// If debug, no interactive terminal
-	let debug = true;
+	let debug = false;
 
 	 // Set terminal to raw mode to allow reading stdin one key at a time
 	 let mut stdout = io::stdout().into_raw_mode().unwrap();
@@ -31,7 +31,7 @@
 
 	// 6502 Implementation
 	println!("6502 initializer");
-	let mut cpu6502 : cpu6502::cpu6502 = cpu6502::cpu6502::new();
+	let mut cpu6502 : cpu6502::Cpu6502 = cpu6502::Cpu6502::new();
 	
 	println!("Resetting 6502...");
 	cpu6502.reset();
@@ -61,7 +61,7 @@
 			let mut cur_y = 0;
 
 	// repeat 100 times
-	for _ in 0..30 {
+	for _ in 0..100 {
 	
 
 		
@@ -113,12 +113,20 @@
 
 	 //If a key was pressed
 	 if let Some(Ok(key)) = input {
+
+
 		match key {
 			
 			// Exit if 'Esc' is pressed
 			termion::event::Key::Esc => break,
 
+			// CR/LF?
+			termion::event::Key::Char('\n') => {
+				cpu6502.set_keypress(13);
+			}
+
 			// Else send the pressed key to the right memory location
+			// Which seems like it might be buggy!!
 			_ => {
 				let key_s : String = format!("{:?}", key);
 				cpu6502.set_keypress(key_s.bytes().nth(6).unwrap());

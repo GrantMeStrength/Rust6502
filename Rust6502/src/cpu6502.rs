@@ -5,7 +5,7 @@
 use crate::memory::MemoryArray;
 
 #[derive(Debug, Copy, Clone)]
-pub struct cpu6502 {
+pub struct Cpu6502 {
 	// Registers
 	pub a: u8,
 	pub x: u8,
@@ -25,18 +25,21 @@ pub struct cpu6502 {
 	 pub cycle : u16,
 	 // Memory - I found it helped the design a LOT of memory was considered part of the CPU.
 	pub memory : MemoryArray,
+
+	pub trace : [u16; 10],
+	pub trace_index : u8,
 }
 
-impl Default for cpu6502 {
+impl Default for Cpu6502 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl cpu6502 {
+impl Cpu6502 {
 
-	pub fn new() -> cpu6502 {
-		cpu6502 {
+	pub fn new() -> Cpu6502 {
+		Cpu6502 {
 			a: 0,
 			x: 0,
 			y: 0,
@@ -53,6 +56,8 @@ impl cpu6502 {
 			decimal_mode : false,
 			cycle : 0,
 			memory : MemoryArray::init(),
+			trace : [0; 10],
+			trace_index : 0,
 		}
 	}
 
@@ -80,13 +85,32 @@ impl cpu6502 {
 		if self.carry_flag { println!("C"); } else { println!("c"); }
 		
 		self.cycle = self.cycle.wrapping_add(1);
+
+		/* This code waits for a cycle and does a thing */
+		/* But need to find the cycle when it quits BASIC and goes to FF00 */
+		/*
+		if self.cycle == 52
+		{
+
+			self.memory.write(0xd011, 0x80);
+			self.memory.write(0xd010, 0x48);
+			self.memory.apple_key_ready = true;
+
+		}
+
+		if self.cycle == 100
+		{
+			std::process::exit(0);
+		}
+
+		*/
 	}
 
 	// Some CPU actions.
 
 	pub fn reset(&mut self) {
-		*self = cpu6502::new();
-		self.pc = 0x0000; // Start at software i.e. WozMon or BASIC
+		*self = Cpu6502::new();
+		self.pc = 0xE000; // Start at software i.e. WozMon or BASIC
 	}
 
 	// Apple-1 hardware
@@ -96,7 +120,7 @@ impl cpu6502 {
 		self.memory.apple_key_value = keypress ; 
 	}
 
-
+/*
 	pub fn execute_specific_instruction(&mut self, code : u8, mem1: u8, mem2 : u8)
 	{
 		self.pc = 0;
@@ -105,6 +129,7 @@ impl cpu6502 {
 		self.memory.write(2, mem2);
 		self.execute();
 	}
+*/
 	
 
 	// The call that causes the CPU to execute one instruction.
@@ -114,6 +139,14 @@ impl cpu6502 {
 		
 		let code: u8 = self.memory.read(self.pc);
 
+		// move trace values down array
+	    for i in 0..9 {
+			self.trace[i] = self.trace[i+1];
+		}
+		
+	self.trace[9] = self.pc;
+
+		
 		//print!("  PC: {:#04x}", self.pc);
 		//print!("   Code: {:#01x}", code);
 
@@ -714,7 +747,13 @@ impl cpu6502 {
 			}
 
 			_ => {
-				panic!("Invalid opcode: {:x}", code);
+
+
+				for p in 0 .. 10 {
+					println!("Backtrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
+				}
+				panic!("Invalid opcode: {:x} at address {:04X}", code,self.pc );
+
 			}
 			
 		}
@@ -738,11 +777,19 @@ impl cpu6502 {
 	// NB not proven to work just yet.
 
 	fn compare(&mut self, a: u8, b: u8) {
-		let result = a.wrapping_sub(b);
-		if result == 0 {self.zero_flag = true;} else {self.zero_flag = false;}
-		if a >= b {self.carry_flag = true;} else {self.carry_flag = false;}
-		if (a & 0x80) != (b & 0x80) && (a & 0x80) != (result & 0x80) {self.overflow_flag = true;} else {self.overflow_flag = false;}
-		if result & 0x80 == 0x80 {self.negative_flag = true;} else {self.negative_flag = false;}
+
+		let result = (a as u16).wrapping_sub(b as u16);
+
+		if a >= (b & 0xFF) { self.carry_flag = true } else { self.carry_flag = false }
+        if a == (b & 0xFF) { self.zero_flag = true } else { self.zero_flag = false }
+		if (result & 0x80) == 0x80 {self.negative_flag = true } else { self.negative_flag = false }
+
+
+		// let result = a.wrapping_sub(b);
+		// if result == 0 {self.zero_flag = true;} else {self.zero_flag = false;}
+		// if a >= b {self.carry_flag = true;} else {self.carry_flag = false;}
+		// if (a & 0x80) != (b & 0x80) && (a & 0x80) != (result & 0x80) {self.overflow_flag = true;} else {self.overflow_flag = false;}
+		// if result & 0x80 == 0x80 {self.negative_flag = true;} else {self.negative_flag = false;}
 	}
 	
 	fn set_flags(&mut self, value : u8) {
@@ -881,8 +928,9 @@ impl cpu6502 {
 		let address = self.memory.read(self.pc).wrapping_add(self.y) as u16;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
-		let address = (high_byte << 8) | low_byte;
-		address.wrapping_add(self.y as u16)
+		(high_byte << 8) | low_byte
+		//let address = (high_byte << 8) | low_byte;
+		//address.wrapping_add(self.y as u16)
 		
 	}
 
@@ -891,7 +939,6 @@ impl cpu6502 {
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
 		(high_byte << 8) | low_byte
-		
 	}
 
 
@@ -910,7 +957,6 @@ impl cpu6502 {
 
 	fn push_stack(&mut self, value : u8) {
 		self.memory.write( 0x0100 + self.sp as u16, value);
-		//print!("    Stored {:02x} on stack at {:02x}", value, self.sp);
 		self.sp = self.sp.wrapping_sub(1);
 	}
 
@@ -922,7 +968,7 @@ impl cpu6502 {
 
 
 	// 6502 Instruction Set
-	// Again not yet proven, there will be bugs. I need to test it.
+	// Again not yet proven, there will be bugs. Needs testing.
 	// Likely issues are around the addressing, math and PC incrementing.
 
 
@@ -942,7 +988,7 @@ impl cpu6502 {
 		let value = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn ora_zeropage(&mut self) {
@@ -979,7 +1025,7 @@ impl cpu6502 {
 
 	fn asl_accumulator(&mut self) {
 		let result: u8 = self.a << 1;
-		self.carry_flag = ((self.a & 128) == 128);
+		self.carry_flag = (self.a & 128) == 128;
 		self.a = result;
 	}
 
@@ -1011,7 +1057,6 @@ impl cpu6502 {
 			//print!("  BMI Branched by {:02x}" ,offset);
 			self.perform_relative_address(offset);
 		} else {
-			//print!("  BMI -");
 			self.pc = self.pc.wrapping_add(1);
 		}
 	}
@@ -1019,11 +1064,9 @@ impl cpu6502 {
 	fn bpl(&mut self) {
 		let offset: u8 = self.memory.read(self.pc);
 		if !self.negative_flag {
-			//print!("  BPL Branched by {:02x}" ,offset);
 			self.perform_relative_address(offset)
 		}
 		else {
-			//print!("  BPL -");
 			self.pc = self.pc.wrapping_add(1);
 		}
 	}
@@ -1033,7 +1076,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a |= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn ora_zeropage_x(&mut self) {
@@ -1087,13 +1130,11 @@ impl cpu6502 {
 	}
 
 	fn jsr(&mut self) { 
-		let address: u16 = self.get_absolute_address();
-		self.pc = self.pc.wrapping_add(1);
+		let address: u16 = self.get_absolute_address(); 
+		self.pc = self.pc.wrapping_add(2); // adding 2?
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
-		//print!("Call {:04x} return to {:04x}   ", address, self.pc);
-		self.pc = address.wrapping_add(0);
-		//print!("PC is now  {:04x} next code to load  {:02x}", self.pc, self.memory.read(self.pc));
+		self.pc = address;
 	}
 
 	fn and_indirect_x(&mut self) {
@@ -1101,7 +1142,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn bit_zeropage(&mut self) {
@@ -1120,7 +1161,6 @@ impl cpu6502 {
 		self.set_flags(self.a);
 		self.pc = self.pc.wrapping_add(1);
 	}
-
 
 	fn rol_zeropage(&mut self) {
 		let address: u16 = self.get_zeropage();
@@ -1163,10 +1203,8 @@ impl cpu6502 {
 	fn sta_indirect_y(&mut self) {
 		let address: u16 = self.get_indirect_y();
 		self.memory.write(address, self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
-
-
 
 	fn bit_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
@@ -1197,17 +1235,12 @@ impl cpu6502 {
 		self.pc = self.pc.wrapping_add(2);
 	}
 
-
-
-
-
-
 	fn and_indirect_y(&mut self) {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn and_zeropage_x(&mut self) {
@@ -1239,7 +1272,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(1);
+		self.pc = self.pc.wrapping_add(2);
 	}
 
 	fn and_absolute_x(&mut self) {
@@ -1247,7 +1280,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a &= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(1);
+		self.pc = self.pc.wrapping_add(2);
 	}
 
 	fn rol_absolute_x(&mut self) {
@@ -1281,7 +1314,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn eor_zeropage(&mut self) {
@@ -1329,7 +1362,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(1);
+		self.pc = self.pc.wrapping_add(2);
 	}
 
 	fn lsr_absolute(&mut self) {
@@ -1368,7 +1401,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a ^= value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn eor_zeropage_x(&mut self) {
@@ -1425,22 +1458,9 @@ impl cpu6502 {
 	fn rts(&mut self) {
 		let address_l: u16 = self.pop_stack() as u16;
 		let address_h: u16 = self.pop_stack() as u16;
-		let address = ((address_h << 8) | address_l).wrapping_add(1);
+		let address = (address_h << 8) | address_l;
 		self.pc = address;
 	}
-
-	// fn adc(&mut self, value : u8) {
-	// 	let mut result: u16 = self.a as u16 + value as u16;
-	// 	if self.carry_flag {
-	// 		result += 1;
-	// 	}
-	// 	self.carry_flag = result > 0xFF;
-	// 	self.overflow_flag = ((self.a ^ value) & 0x80 == 0) && ((self.a ^ result as u8) & 0x80 != 0);
-	// 	self.a = result as u8;
-	// 	self.set_flags(self.a);
-	// 	self.pc = self.pc.wrapping_add(1);
-	// }
-
 
 	fn adc_indirect_x(&mut self) {
 		let address: u16 = self.get_indirect_x();
@@ -1526,7 +1546,7 @@ impl cpu6502 {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.adc(value);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn adc_zeropage_x(&mut self) {
@@ -1581,7 +1601,7 @@ impl cpu6502 {
 	fn sta_indirect_x(&mut self) {
 		let address: u16 = self.get_indirect_x();
 		self.memory.write(address, self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn sty_zeropage(&mut self) {
@@ -1686,7 +1706,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn ldx_immediate(&mut self) {
@@ -1730,7 +1750,6 @@ impl cpu6502 {
 		self.a = value;
 		self.set_flags(self.a);
 		self.pc = self.pc.wrapping_add(1);
-		//print!("LDA IMMED: {:x}", value);
 	}
 
 	fn txs(&mut self) {
@@ -1766,7 +1785,6 @@ impl cpu6502 {
 		self.a = value;
 		self.set_flags(self.a);
 		self.pc = self.pc.wrapping_add(2);
-		//print!("LDA ABSOLUTE: {:x} {:x}", address, value);
 	}
 
 	fn ldx_absolute(&mut self) {
@@ -1791,7 +1809,7 @@ impl cpu6502 {
 		let value: u8 = self.memory.read(address);
 		self.a = value;
 		self.set_flags(self.a);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn ldy_zeropage_x(&mut self) {
@@ -1869,7 +1887,7 @@ impl cpu6502 {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn cpy_zeropage(&mut self) {
@@ -1947,7 +1965,7 @@ impl cpu6502 {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.compare(self.a, value);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn cmp_zeropage_x(&mut self) {
@@ -2003,7 +2021,7 @@ impl cpu6502 {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn cpx_zeropage(&mut self) {
@@ -2074,7 +2092,7 @@ impl cpu6502 {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
 		self.subtract_with_carry_decimal(value);
-		self.pc = self.pc.wrapping_add(2);
+		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn sbc_zeropage_x(&mut self) {
@@ -2123,17 +2141,16 @@ impl cpu6502 {
 	fn adc(&mut self, n2: u8)
     {
         
-       
 		let c : u16 = if self.carry_flag { 1 } else { 0 };
 
 
-        let mut value = n2 as u16;
+        let value = n2 as u16;
         
         if !self.decimal_mode
         {
             let total = self.a as u16 + value + c;
             
-            if (total>255)   {
+            if total>255   {
                 // Set the C flag
                 self.carry_flag= true;
             }
@@ -2142,18 +2159,18 @@ impl cpu6502 {
                 self.carry_flag = false;
             }
             
-            let operand0 = (self.a & 0x80);
-            let operand1 = (n2 & 0x80);
-            let result   = (total & 0x80);
+            let operand0 = self.a & 0x80;
+            let operand1 = n2 & 0x80;
+            let result   = total & 0x80;
             
-            if (operand0 == 0 && operand1 == 0 && result != 0)
+            if operand0 == 0 && operand1 == 0 && result != 0
             {
                 self.overflow_flag = true;  // Set the V flag
             }
             else
             {
             
-                if (operand0 != 0 && operand1 != 0 && result == 0)
+                if operand0 != 0 && operand1 != 0 && result == 0
                 {
                     self.overflow_flag = true;
                 }
@@ -2185,26 +2202,26 @@ impl cpu6502 {
 		let c : u8 = if self.carry_flag { 1 } else { 0 };
   
         // Lower nib
-        let mut AL = (self.a & 15) + (s & 15) + c;
+        let mut al = (self.a & 15) + (s & 15) + c;
         
         // Higher nib
-        let mut AH = (self.a >> 4) + (s >> 4); if AL > 9 { AH += 1 }
+        let mut ah = (self.a >> 4) + (s >> 4); if al > 9 { ah += 1 }
         
         // Wrap lower nib
-        if (AL > 9) { AL -= 10  }
+        if al > 9 { al -= 10  }
         
         // Set Zero flag, but doesn't account for 0x80 answer yet
         //self.zero_flag = ((A &+ s &+ C) & 255 == 0) ? true : false
 
 		if (self.a + s + c ) & 255 == 0 {self.carry_flag = true} else {self.carry_flag = false}
         
-        self.negative_flag = (AH & 8 != 0);
-        self.overflow_flag = ((((AH << 4) ^ self.a) & 128) != 0) && !((((self.a ^ s) & 128) != 0));
+        self.negative_flag = ah & 8 != 0;
+        self.overflow_flag = ((((ah << 4) ^ self.a) & 128) != 0) && !((((self.a ^ s) & 128) != 0));
         
-        if (AH > 9) { AH -= 10; self.carry_flag = true;} else {self.carry_flag = false;}
+        if ah > 9 { ah -= 10; self.carry_flag = true;} else {self.carry_flag = false;}
         
         // Calculate accumulator
-        self.a = ((AH << 4) | (AL & 15)) & 255;
+        self.a = ((ah << 4) | (al & 15)) & 255;
         
         self.set_flags(self.a)
         
