@@ -62,9 +62,10 @@ impl MemoryArray {
 			}
 
 			self.apple_key_ready = false;
+
+			//println!("Key pressed: {:02X}",self.apple_key_value | 0x80);
 			
 			return self.apple_key_value | 0x80;
-		
 	}
 	
 
@@ -86,7 +87,11 @@ impl MemoryArray {
         if address == 0xd012 {
 			self.apple_output_char_waiting = true;
 			self.apple_output_char = value & 0x7f;
-            print!("{}", (value & 0x7f) as char);
+            print!("{}", (self.apple_output_char) as char);
+
+			if self.apple_output_char == 10 || self.apple_output_char == 13  {
+				print!("\n");
+			}
         }
 
        if !self.memory[address as usize].readonly {

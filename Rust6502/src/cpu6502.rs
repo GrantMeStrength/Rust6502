@@ -27,7 +27,6 @@ pub struct Cpu6502 {
 	pub memory : MemoryArray,
 
 	pub trace : [u16; 10],
-	pub trace_index : u8,
 }
 
 impl Default for Cpu6502 {
@@ -57,7 +56,6 @@ impl Cpu6502 {
 			cycle : 0,
 			memory : MemoryArray::init(),
 			trace : [0; 10],
-			trace_index : 0,
 		}
 	}
 
@@ -110,7 +108,7 @@ impl Cpu6502 {
 
 	pub fn reset(&mut self) {
 		*self = Cpu6502::new();
-		self.pc = 0xE000; // Start at software i.e. WozMon or BASIC
+		self.pc = 0xFF00; // Start at software i.e. WozMon or BASIC
 	}
 
 	// Apple-1 hardware
@@ -118,6 +116,7 @@ impl Cpu6502 {
 	pub fn set_keypress(&mut self, keypress : u8) {
 		self.memory.apple_key_ready = true;
 		self.memory.apple_key_value = keypress ; 
+		//println!("Keypress: {}",keypress);
 	}
 
 /*
@@ -915,7 +914,7 @@ impl Cpu6502 {
 	}
 
 	fn get_indirect_x(&mut self) -> u16 {
-		let address = self.memory.read(self.pc).wrapping_add(self.x) as u16;
+		let address = (self.memory.read(self.pc).wrapping_add(self.x) as u16) & 0xff;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
 		(high_byte << 8) | low_byte
@@ -923,7 +922,7 @@ impl Cpu6502 {
 	}
 
 	fn get_indirect_y(&mut self) -> u16 {
-		let address = self.memory.read(self.pc).wrapping_add(self.y) as u16;
+		let address = (self.memory.read(self.pc).wrapping_add(self.y) as u16) & 0xff;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
 		(high_byte << 8) | low_byte		
@@ -969,7 +968,6 @@ impl Cpu6502 {
 
 
 	fn brk(&mut self) {
-		//print!("brk");
 		self.pc = self.pc.wrapping_sub(1);
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
@@ -1371,6 +1369,7 @@ impl Cpu6502 {
 
 	fn perform_relative_address(&mut self, offset: u8) {
 
+		self.pc = self.pc.wrapping_add(1); // get PC pointing past the offset byte
 		let mut t = offset as u16;
 		let mut address = self.pc.wrapping_add(t as u16);
 		if t & 0x80 == 0x80 {
@@ -1378,7 +1377,7 @@ impl Cpu6502 {
 			address = self.pc.wrapping_sub(t as u16);
 		}
 
-		self.pc = address.wrapping_add(1);
+		self.pc = address;
 	}
 
 	fn bvc(&mut self) {
@@ -1503,8 +1502,7 @@ impl Cpu6502 {
 	}
 
 	fn jmp_indirect(&mut self) {
-		let address: u16 = self.get_indirect();
-		self.pc = address;
+		self.pc = self.get_indirect();
 	}
 
 
@@ -1704,8 +1702,7 @@ impl Cpu6502 {
 	}
 
 	fn ldx_immediate(&mut self) {
-		let value: u8 = self.get_immediate();
-		self.x = value;
+		self.x = self.get_immediate();
 		self.set_flags(self.x);
 		self.pc = self.pc.wrapping_add(1);
 	}
