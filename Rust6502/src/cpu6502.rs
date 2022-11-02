@@ -814,6 +814,23 @@ impl Cpu6502 {
 		value
 	}
 
+	fn sbc(&mut self, value : u8) {
+
+		
+		if self.decimal_flag {
+			println!("Decimal mode SBC is non-functional");
+			return;
+		}
+		let a = self.a;
+		let b = value;
+		let c = if self.carry_flag { 0 } else { 1 };
+		let result = a.wrapping_sub(b).wrapping_sub(c);
+		self.set_flags(result);
+		self.carry_flag = a >= b + c;
+		self.overflow_flag = (a ^ result) & (b ^ result) & 0x80 != 0;
+		self.a = result;
+	}
+
 	fn subtract_with_carry_decimal(&mut self, value: u8) {
 		let  total : u16 ;
 		let mut bcd_low : u16 ;
@@ -2011,7 +2028,7 @@ impl Cpu6502 {
 	fn sbc_indirect_x(&mut self) {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(1);
 	}
 
@@ -2022,10 +2039,11 @@ impl Cpu6502 {
 		self.pc = self.pc.wrapping_add(1);
 	}
 
-	fn sbc_zeropage(&mut self) {
+	fn sbc_zeropage(&mut self) { // plop
 		let address: u16 = self.get_zeropage();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value); // PLOP
+		//self.subtract_with_carry_decimal(value);
 		self.pc = self.pc.wrapping_add(1);
 	}
 	
@@ -2046,7 +2064,7 @@ impl Cpu6502 {
 
 	fn sbc_immediate(&mut self) {
 		let value: u8 = self.get_immediate();
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(1);
 	}
 
@@ -2064,7 +2082,7 @@ impl Cpu6502 {
 	fn sbc_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(2);
 	}
 
@@ -2082,14 +2100,14 @@ impl Cpu6502 {
 	fn sbc_indirect_y(&mut self) {
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(1);
 	}
 
 	fn sbc_zeropage_x(&mut self) {
 		let address: u16 = self.get_zeropage_x();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(1);
 	}
 
@@ -2109,14 +2127,14 @@ impl Cpu6502 {
 	fn sbc_absolute_y(&mut self) {
 		let address: u16 = self.get_absolute_address_y();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(2);
 	}
 
 	fn sbc_absolute_x(&mut self) {
 		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
-		self.subtract_with_carry_decimal(value);
+		self.sbc(value);
 		self.pc = self.pc.wrapping_add(2);
 	}
 
