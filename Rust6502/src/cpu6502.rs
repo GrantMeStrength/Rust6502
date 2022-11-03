@@ -23,6 +23,7 @@ pub struct Cpu6502 {
 	// State
 	 pub decimal_mode : bool,
 	 pub cycle : u16,
+	 pub trigger : bool,
 	 // Memory - I found it helped the design a LOT of memory was considered part of the CPU.
 	pub memory : MemoryArray,
 
@@ -54,6 +55,7 @@ impl Cpu6502 {
 			unused_flag: false,
 			decimal_mode : false,
 			cycle : 0,
+			trigger : false,
 			memory : MemoryArray::init(),
 			trace : [0; 10],
 		}
@@ -108,7 +110,7 @@ impl Cpu6502 {
 
 	pub fn reset(&mut self) {
 		*self = Cpu6502::new();
-		self.pc = 0xFF00; // Start at software i.e. WozMon or BASIC
+		self.pc = 0xff00; // Start at software i.e. WozMon or BASIC
 	}
 
 	// Apple-1 hardware
@@ -138,6 +140,13 @@ impl Cpu6502 {
 		
 		let code: u8 = self.memory.read(self.pc);
 
+
+		//if self.pc == 0xe491 || self.trigger && self.cycle < 20
+	//	{
+	//		self.print_cpu_status_on_one_line();
+			//self.trigger = true;
+	//	}
+
 		// move trace values down array
 	    for i in 0..9 {
 			self.trace[i] = self.trace[i+1];
@@ -145,6 +154,16 @@ impl Cpu6502 {
 		
 	self.trace[9] = self.pc;
 
+	if self.pc == 0xe3e0 {
+		println!(" Error message");
+
+		// dump trace
+		for p in 0 .. 10 {
+			println!("Backtrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
+		}
+
+
+	}
 		
 		//print!("  PC: {:#04x}", self.pc);
 		//print!("   Code: {:#01x}", code);
@@ -777,10 +796,11 @@ impl Cpu6502 {
 
 	fn compare(&mut self, a: u8, b: u8) {
 
-		let result = (a as u16).wrapping_sub(b as u16);
+		//let result = (a as u16).wrapping_sub(b as u16);
+		let result = (a as i16) - (b as i16);
 
-		if a >= (b & 0xFF) { self.carry_flag = true } else { self.carry_flag = false }
-        if a == (b & 0xFF) { self.zero_flag = true } else { self.zero_flag = false }
+		if a >= (b & 0xFF) as u8 { self.carry_flag = true } else { self.carry_flag = false }
+        if a == (b & 0xFF) as u8 { self.zero_flag = true } else { self.zero_flag = false }
 		if (result & 0x80) == 0x80 {self.negative_flag = true } else { self.negative_flag = false }
 
 
@@ -821,6 +841,8 @@ impl Cpu6502 {
 			println!("Decimal mode SBC is non-functional");
 			return;
 		}
+
+
 		let a = self.a;
 		let b = value;
 		let c = if self.carry_flag { 0 } else { 1 };
@@ -938,12 +960,23 @@ impl Cpu6502 {
 		
 	}
 
-	fn get_indirect_y(&mut self) -> u16 {
+	// Buggy version?
+	fn old_get_indirect_y(&mut self) -> u16 {
 		let address = (self.memory.read(self.pc).wrapping_add(self.y) as u16) & 0xff;
 		let low_byte = self.memory.read(address) as u16;
 		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
 		(high_byte << 8) | low_byte		
 	}
+
+	// Correct version?
+	fn get_indirect_y(&mut self) -> u16 {
+
+		let ial = self.memory.read(self.pc) as u16;
+		let bal: u16 = self.memory.read((0xff & ial)) as u16;
+		let bah: u16 = self.memory.read((0xff & ial.wrapping_add(1))) as u16;
+		(bah << 8) | bal.wrapping_add(self.y as u16)		
+	}
+
 
 	fn get_indirect(&mut self) -> u16 {
 		let address = self.get_absolute_address();
@@ -1012,8 +1045,8 @@ impl Cpu6502 {
 	fn asl_zeropage(&mut self) {
 		let address = self.get_zeropage();
 		let mut value = self.memory.read(address);
-		value <<= 1;
 		self.carry_flag = (value & 128) == 128;
+		value <<= 1;
 		self.memory.write(address, value);
 		self.set_flags(value);
 		self.pc = self.pc.wrapping_add(1);
@@ -1034,9 +1067,9 @@ impl Cpu6502 {
 	}
 
 	fn asl_accumulator(&mut self) {
-		let result: u8 = self.a << 1;
 		self.carry_flag = (self.a & 128) == 128;
-		self.a = result;
+		self.a =  self.a << 1;
+		self.set_flags(self.a);
 	}
 
 	fn ora_absolute(&mut self) {
@@ -1050,8 +1083,8 @@ impl Cpu6502 {
 	fn asl_absolute(&mut self) {
 		let address: u16 = self.get_absolute_address();
 		let value: u8 = self.memory.read(address);
-		let result: u8 = value << 1;
 		self.carry_flag = (value & 128) == 128;
+		let result: u8 = value << 1;
 		self.set_flags(result);
 		self.memory.write(address, result);
 		self.pc = self.pc.wrapping_add(2);
@@ -1100,9 +1133,9 @@ impl Cpu6502 {
 	fn asl_zeropage_x(&mut self) {
 		let address: u16 = self.get_zeropage_x();
 		let value: u8 = self.memory.read(address);
+		self.carry_flag = (value & 128) == 128;
 		let result: u8 = value << 1;
 		self.set_flags(result);
-		self.carry_flag = (value & 128) == 128;
 		self.memory.write(address, result);
 		self.pc = self.pc.wrapping_add(1);
 	}
@@ -1131,8 +1164,8 @@ impl Cpu6502 {
 	fn asl_absolute_x(&mut self) {
 		let address: u16 = self.get_absolute_address_x();
 		let value: u8 = self.memory.read(address);
-		let result: u8 = value << 1;
 		self.carry_flag = (value & 128) == 128;
+		let result: u8 = value << 1;
 		self.set_flags(result);
 		self.memory.write(address, result);
 		self.pc = self.pc.wrapping_add(2);
@@ -1814,8 +1847,7 @@ impl Cpu6502 {
 
 	fn lda_indirect_y(&mut self) {
 		let address: u16 = self.get_indirect_y();
-		let value: u8 = self.memory.read(address);
-		self.a = value;
+		self.a = self.memory.read(address);
 		self.set_flags(self.a);
 		self.pc = self.pc.wrapping_add(1);
 	}
@@ -2147,9 +2179,12 @@ impl Cpu6502 {
 		self.pc = self.pc.wrapping_add(2);
 	}
 
+	
+
 	fn adc(&mut self, n2: u8)
     {
-        
+
+		 
 		let c : u16 = if self.carry_flag { 1 } else { 0 };
 
 
