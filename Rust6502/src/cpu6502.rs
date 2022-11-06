@@ -43,7 +43,7 @@ impl Cpu6502 {
 			a: 0,
 			x: 0,
 			y: 0,
-			sp: 0xFB, // The default StackPointer. This works for now.
+			sp: 0xFE, // The default StackPointer. This works for now.
 			pc: 0,
 			carry_flag: false,
 			zero_flag: false,
@@ -64,47 +64,55 @@ impl Cpu6502 {
 	// Some helper functions.
 
 
+	pub fn reset_pc(&mut self)
+	{
+		self.pc = 0;
+	}
+
 	pub fn load_data_into_memory(&mut self, address : u16, data : Vec<u8>) {
 		for (i, byte) in data.iter().enumerate() {
 			self.memory.write(address + i as u16, *byte);
 			}
 	}
 
+	pub fn dump_memory(&mut self, start : u16, end : u16) {
+
+		let mut add = start;
+
+		while add < end {
+			let mut line = String::new();
+			line.push_str(&format!("{:04X} ", add));
+			for _ in 0..8 {
+				line.push_str(&format!("{:02X} ", self.memory.read(add)));
+				add += 1;
+			}
+			println!("{}", line);
+		}
+
+
+	}
+
+	pub fn string_cpu_status(&mut self) -> String {
+		let mut s = String::new();
+		s.push_str(&format!("\rCycle: {:04}  {:04X}  PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} SP:{:02X}  ", self.cycle, self.memory.read(self.pc), self.pc, self.a, self.x, self.y, self.sp));
 	
+		if self.negative_flag { s.push_str("N"); } else { s.push_str("n"); }
+		if self.overflow_flag { s.push_str("V"); } else { s.push_str("v"); }
+		s.push_str("_");
+		if self.break_flag { s.push_str("B"); } else { s.push_str("b"); }
+		if self.decimal_flag { s.push_str("D"); } else { s.push_str("d"); }
+		if self.interrupt_flag { s.push_str("I"); } else { s.push_str("i"); }
+		if self.zero_flag { s.push_str("Z"); } else { s.push_str("z"); }
+		if self.carry_flag { s.push_str("C"); } else { s.push_str("c"); }
+		self.cycle = self.cycle.wrapping_add(1);
+		s
+	}
 
 	pub fn print_cpu_status_on_one_line(&mut self) {
-		print!("Cycle: {:04}  {:04X}  PC: {:04X}  A: {:02X}  X: {:02X}  Y: {:02X}  SP: {:02X}  ", self.cycle, self.memory.read(self.pc+1), self.pc, self.a, self.x, self.y, self.sp);
-	
-		if self.negative_flag { print!("N"); } else { print!("n"); }
-		if self.overflow_flag { print!("V"); } else { print!("v"); }
-		print!("_");
-		if self.break_flag { print!("B"); } else { print!("b"); }
-		if self.decimal_flag { print!("D"); } else { print!("d"); }
-		if self.interrupt_flag { print!("I"); } else { print!("i"); }
-		if self.zero_flag { print!("Z"); } else { print!("z"); }
-		if self.carry_flag { println!("C"); } else { println!("c"); }
-		
-		self.cycle = self.cycle.wrapping_add(1);
-
-		/* This code waits for a cycle and does a thing */
-		/* But need to find the cycle when it quits BASIC and goes to FF00 */
-		/*
-		if self.cycle == 52
-		{
-
-			self.memory.write(0xd011, 0x80);
-			self.memory.write(0xd010, 0x48);
-			self.memory.apple_key_ready = true;
-
-		}
-
-		if self.cycle == 100
-		{
-			std::process::exit(0);
-		}
-
-		*/
+		print!("{}", self.string_cpu_status());
 	}
+
+
 
 	// Some CPU actions.
 
@@ -136,16 +144,17 @@ impl Cpu6502 {
 	// The call that causes the CPU to execute one instruction.
 	// Yeah, it's a giant switch.
 
-	pub fn execute(&mut self) {
+	pub fn execute(&mut self) -> bool
+	{
 		
 		let code: u8 = self.memory.read(self.pc);
 
 
-		//if self.pc == 0xe491 || self.trigger && self.cycle < 20
-	//	{
-	//		self.print_cpu_status_on_one_line();
-			//self.trigger = true;
-	//	}
+		if (/*self.pc == 0xe6ec || */ self.trigger) && self.cycle < 500
+		{
+			//self.print_cpu_status_on_one_line();
+			self.trigger = true;
+		}
 
 		// move trace values down array
 	    for i in 0..9 {
@@ -155,624 +164,805 @@ impl Cpu6502 {
 	self.trace[9] = self.pc;
 
 	if self.pc == 0xe3e0 {
-		println!(" Error message");
+		println!("\rError message");
 
 		// dump trace
 		for p in 0 .. 10 {
-			println!("Backtrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
+			println!("\rBacktrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
 		}
 
 
 	}
 		
-		//print!("  PC: {:#04x}", self.pc);
-		//print!("   Code: {:#01x}", code);
+		//print!("\r  PC: {:#04x}", self.pc);
+		//print!("\r   Code: {:#01x}", code);
 
 		self.pc = self.pc.wrapping_add(1);
 
 		match code {
 			0x00 => {
 				self.brk();
+				return true;
 			}
 			0x01 => {
 				self.ora_indirect_x();
+				return true;
 			}
 			0x05 => {
 				self.ora_zeropage();
+				return true;
 			}
 			0x06 => {
 				self.asl_zeropage();
+				return true;
 			}
 			0x08 => {
 				self.php();
+				return true;
 			}
 			0x09 => {
 				self.ora_immediate();
+				return true;
 			}
 			0x0a => {
 				self.asl_accumulator();
+				return true;
 			}
 			0x0d => {
 				self.ora_absolute();
+				return true;
 			}
 			0x0e => {
 				self.asl_absolute();
+				return true;
 			}
 			0x10 => {
 				self.bpl();
+				return true;
 			}
 			0x11 => {
 				self.ora_indirect();
+				return true;
 			}
 			0x15 => {
 				self.ora_zeropage_x();
+				return true;
 			}
 			0x16 => {
 				self.asl_zeropage_x();
+				return true;
 			}
 			0x18 => {
 				self.clc();
+				return true;
 			}
 			0x19 => {
 				self.ora_absolute_y();
+				return true;
 			}
-
+		
 			0x1d => {
 				self.ora_absolute_x();
+				return true;
 			}
 			0x1e => {
 				self.asl_absolute_x();
+				return true;
 			}
 			0x20 => {
 				self.jsr();
+				return true;
 			}
 			0x21 => {
 				self.and_indirect_x();
+				return true;
 			}
 			0x24 => {
 				self.bit_zeropage();
+				return true;
 			}
-
+		
 			0x25 => {
 				self.and_zeropage();
+				return true;
 			}
-
+		
 			0x26 => {
 				self.rol_zeropage();
+				return true;
 			}
-
+		
 			0x28 => {
 				self.plp();
+				return true;
 			}
-
+		
 			0x29 => {
 				self.and_immediate();
+				return true;
 			}
-
+		
 			0x2a => {
 				self.rol_accumulator();
+				return true;
 			}
-
+		
 			0x2c => {
 				self.bit_absolute();
+				return true;
 			}
-
+		
 			0x2d => {
 				self.and_absolute();
+				return true;
 			}
-
+		
 			0x2e => {
 				self.rol_absolute();
+				return true;
 			}
-
+		
 			0x30 => {
 				self.bmi();
+				return true;
 			}
-
+		
 			0x31 => {
 				self.and_indirect_y();
+				return true;
 			}
-
+		
 			0x35 => {
 				self.and_zeropage_x();
+				return true;
 			}
-
+		
 			0x36 => {
 				self.rol_zeropage_x();
+				return true;
 			}
-
+		
 			0x38 => {
 				self.sec();
+				return true;
 			}
-
+		
 			0x39 => {
 				self.and_absolute_y();
+				return true;
 			}
-
+		
 			0x3d => {
 				self.and_absolute_x();
+				return true;
 			}
-
+		
 			0x3e => {
 				self.rol_absolute_x();
+				return true;
 			}
-
+		
 			0x40 => {
 				self.rti();
+				return true;
 			}
 			
 			
 			0x41 => {
 				self.eor_indirect_x();
+				return true;
 			}
-
+		
 			0x45 => {
 				self.eor_zeropage();
+				return true;
 			}
-
+		
 			0x46 => {
 				self.lsr_zeropage();
+				return true;
 			}
-
+		
 			0x48 => {
 				self.pha();
+				return true;
 			}
-
+		
 			0x49 => {
 				self.eor_immediate();
+				return true;
 			}
-
+		
 			0x4a => {
 				self.lsr_accumulator();
+				return true;
 			}
-
+		
 			0x4c => {
 				self.jmp_absolute();
+				return true;
 			}
-
+		
 			0x4d => {
 				self.eor_absolute();
+				return true;
 			}
-
+		
 			0x4e => {
 				self.lsr_absolute();
+				return true;
 			}
-
+		
 			0x50 => {
 				self.bvc();
+				return true;
 			}
-
+		
 			0x51 => {
 				self.eor_indirect_y();
+				return true;
 			}
-
+		
 			0x55 => {
 				self.eor_zeropage_x();
+				return true;
 			}
-
+		
 			0x56 => {
 				self.lsr_zeropage_x();
+				return true;
 			}
-
+		
 			0x58 => {
 				self.cli();
+				return true;
 			}
-
+		
 			0x59 => {
 				self.eor_absolute_y();
+				return true;
 			}
 
+			0x5a => {
+				self.phy();
+				return true;
+			}
+		
 			0x5d => {
 				self.eor_absolute_x();
+				return true;
 			}
-
+		
 			0x5e => {
 				self.lsr_absolute_x();
+				return true;
 			}
-
+		
 			0x60 => {
 				self.rts();
+				return true;
 			}
-
+		
 			0x61 => {
 				self.adc_indirect_x();
+				return true;
 			}
-
+		
 			0x65 => {
 				self.adc_zeropage();
+				return true;
 			}
-
+		
 			0x66 => {
 				self.ror_zeropage();
+				return true;
 			}
-
+		
 			0x68 => {
 				self.pla();
+				return true;
 			}
-
+		
 			0x69 => {
 				self.adc_immediate();
+				return true;
 			}
-
+		
 			0x6a => {
 				self.ror_accumulator();
+				return true;
 			}
-
+		
 			0x6c => {
 				self.jmp_indirect();
+				return true;
 			}
-
+		
 			0x6d => {
 				self.adc_absolute();
+				return true;
 			}
-
+		
 			0x6e => {
 				self.ror_absolute();
+				return true;
 			}
-
+		
 			0x70 => {
 				self.bvs();
+				return true;
 			}
-
+		
 			0x71 => {
 				self.adc_indirect_y();
+				return true;
 			}
-
+		
 			0x75 => {
 				self.adc_zeropage_x();
+				return true;
 			}
-
+		
 			0x76 => {
 				self.ror_zeropage_x();
+				return true;
 			}
-
+		
 			0x78 => {
 				self.sei();
+				return true;
 			}
-
+		
 			0x79 => {
 				self.adc_absolute_y();
+				return true;
 			}
 
+			0x7a => {
+				self.ply();
+				return true;
+			}
+		
 			0x7d => {
 				self.adc_absolute_x();
+				return true;
 			}
-
+		
 			0x7e => {
 				self.ror_absolute_x();
+				return true;
 			}
-
+		
 			0x80 => {
 				self.bra();
+				return true;
 			}
-
-
+		
+		
 			0x81 => {
 				self.sta_indirect_x();
+				return true;
 			}
-
+		
 			0x84 => {
 				self.sty_zeropage();
+				return true;
 			}
-
+		
 			0x85 => {
 				self.sta_zeropage();
+				return true;
 			}
-
+		
 			0x86 => {
 				self.stx_zeropage();
+				return true;
 			}
-
+		
 			0x88 => {
 				self.dey();
+				return true;
 			}
-
+		
 			0x8a => {
 				self.txa();
+				return true;
 			}
-
+		
 			0x8c => {
 				self.sty_absolute();
+				return true;
 			}
-
+		
 			0x8d => {
 				self.sta_absolute();
+				return true;
 			}
-
+		
 			0x8e => {
 				self.stx_absolute();
+				return true;
 			}
-
+		
 			0x90 => {
 				self.bcc();
+				return true;
 			}
-
+		
 			0x91 => {
 				self.sta_indirect_y();
+				return true;
 			}
-
+		
 			0x94 => {
 				self.sty_zeropage_x();
+				return true;
 			}
-
+		
 			0x95 => {
 				self.sta_zeropage_x();
+				return true;
 			}
-
+		
 			0x96 => {
 				self.stx_zeropage_y();
+				return true;
 			}
-
+		
 			0x98 => {
 				self.tya();
+				return true;
 			}
-
+		
 			0x99 => {
 				self.sta_absolute_y();
+				return true;
 			}
-
+		
 			0x9a => {
 				self.txs();
+				return true;
 			}
-
+		
 			0x9d => {
 				self.sta_absolute_x();
+				return true;
 			}
-
+		
 			0xa0 => {
 				//println!("LDY");
 				self.ldy_immediate();
+				return true;
 			}
-
+		
 			0xa1 => {
 				self.lda_indirect_x();
+				return true;
 			}
-
+		
 			0xa2 => {
 				self.ldx_immediate();
+				return true;
 			}
-
+		
 			0xa4 => {
 				self.ldy_zeropage();
+				return true;
 			}
-
+		
 			0xa5 => {
 				self.lda_zeropage();
+				return true;
 			}
-
+		
 			0xa6 => {
 				self.ldx_zeropage();
+				return true;
 			}
-
+		
 			0xa8 => {
 				self.tay();
+				return true;
 			}
-
+		
 			0xa9 => {
 				self.lda_immediate();
+				return true;
 			}
-
+		
 			0xaa => {
 				self.tax();
+				return true;
 			}
-
+		
 			0xac => {
 				self.ldy_absolute();
+				return true;
 			}
-
+		
 			0xad => {
 				self.lda_absolute();
+				return true;
 			}
-
+		
 			0xae => {
 				self.ldx_absolute();
+				return true;
 			}
-
+		
 			0xb0 => {
 				self.bcs();
+				return true;
 			}
-
+		
 			0xb1 => {
 				self.lda_indirect_y();
+				return true;
 			}
-
+		
 			0xb4 => {
 				self.ldy_zeropage_x();
+				return true;
 			}
-
+		
 			0xb5 => {
 				self.lda_zeropage_x();
+				return true;
 			}
-
+		
 			0xb6 => {
 				self.ldx_zeropage_y();
+				return true;
 			}
-
+		
 			0xb8 => {
 				self.clv();
+				return true;
 			}
-
+		
 			0xb9 => {
 				self.lda_absolute_y();
+				return true;
 			}
-
+		
 			0xba => {
 				self.tsx();
+				return true;
 			}
-
+		
 			0xbc => {
 				self.ldy_absolute_x();
+				return true;
 			}
-
+		
 			0xbd => {
 				self.lda_absolute_x();
+				return true;
 			}
-
+		
 			0xbe => {
 				self.ldx_absolute_y();
+				return true;
 			}
-
+		
 			0xc0 => {
 				self.cpy_immediate();
+				return true;
 			}
-
+		
 			0xc1 => {
 				self.cmp_indirect_x();
+				return true;
 			}
-
+		
 			0xc4 => {
 				self.cpy_zeropage();
+				return true;
 			}
-
+		
 			0xc5 => {
 				self.cmp_zeropage();
+				return true;
 			}
-
+		
 			0xc6 => {
 				self.dec_zeropage();
+				return true;
 			}
-
+		
 			0xc8 => {
 				self.iny();
+				return true;
 			}
-
+		
 			0xc9 => {
 				self.cmp_immediate();
+				return true;
 			}
-
+		
 			0xca => {
 				self.dex();
+				return true;
 			}
-
+		
 			0xcc => {
 				self.cpy_absolute();
+				return true;
 			}
-
+		
 			0xcd => {
 				self.cmp_absolute();
+				return true;
 			}
-
+		
 			0xce => {
 				self.dec_absolute();
+				return true;
 			}
-
+		
 			0xd0 => {
 				self.bne();
+				return true;
 			}
-
+		
 			0xd1 => {
 				self.cmp_indirect_y();
+				return true;
 			}
-
+		
 			0xd5 => {
 				self.cmp_zeropage_x();
+				return true;
 			}
-
+		
 			0xd6 => {
 				self.dec_zeropage_x();
+				return true;
 			}
-
+		
 			0xd8 => {
 				self.cld();
+				return true;
 			}
-
+		
 			0xd9 => {
 				self.cmp_absolute_y();
+				return true;
 			}
 
+			0xda => {
+				self.phx();
+				return true;
+			}
+
+			0x5a => {
+				self.phy();
+				return true;
+			}
+		
 			0xdd => {
 				self.cmp_absolute_x();
+				return true;
 			}
-
+		
 			0xde => {
 				self.dec_absolute_x();
+				return true;
 			}
-
+		
 			0xe0 => {
 				self.cpx_immediate();
+				return true;
 			}
-
+		
 			0xe1 => {
 				self.sbc_indirect_x();
+				return true;
 			}
-
+		
 			0xe4 => {
 				self.cpx_zeropage();
+				return true;
 			}
-
+		
 			0xe5 => {
 				self.sbc_zeropage();
+				return true;
 			}
-
+		
 			0xe6 => {
 				self.inc_zeropage();
+				return true;
 			}
-
+		
 			0xe8 => {
 				self.inx();
+				return true;
 			}
-
+		
 			0xe9 => {
 				self.sbc_immediate();
+				return true;
 			}
-
+		
 			0xea => {
 				self.nop();
+				return true;
 			}
-
+		
 			0xec => {
 				self.cpx_absolute();
+				return true;
 			}
-
+		
 			0xed => {
 				self.sbc_absolute();
+				return true;
 			}
-
+		
 			0xee => {
 				self.inc_absolute();
+				return true;
 			}
-
+		
 			0xf0 => {
 				self.beq();
+				return true;
 			}
-
+		
 			0xf1 => {
 				self.sbc_indirect_y();
+				return true;
 			}
-
+		
 			0xf5 => {
 				self.sbc_zeropage_x();
+				return true;
 			}
-
+		
 			0xf6 => {
 				self.inc_zeropage_x();
+				return true;
 			}
-
+		
 			0xf8 => {
 				self.sed();
+				return true;
 			}
-
+		
 			0xf9 => {
 				self.sbc_absolute_y();
+				return true;
 			}
 
+			0xfa => {
+				self.plx();
+				return true;
+			}
+		
 			0xfd => {
 				self.sbc_absolute_x();
+				return true;
 			}
-
+		
 			0xfe => {
 				self.inc_absolute_x();
+				return true;
 			}
 
 			_ => {
 
 
-				for p in 0 .. 10 {
-					println!("Backtrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
-				}
-				panic!("Invalid opcode: {:x} at address {:04X}", code,self.pc );
+				return false;
+			
+				// for p in 0 .. 10 {
+				// 	println!("\rBacktrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
+				// }
+				// panic!("Invalid opcode: {:x} at address {:04X}", code,self.pc );
 
 			}
+
+		
 			
 		}
 	
@@ -803,6 +993,8 @@ impl Cpu6502 {
         if a == (b & 0xFF) as u8 { self.zero_flag = true } else { self.zero_flag = false }
 		if (result & 0x80) == 0x80 {self.negative_flag = true } else { self.negative_flag = false }
 
+		// println!("\n\rCycle: {} .  ", self.cycle);
+		// println!("Compare: A: {:02X} B: {:02X} Result: {:02X} Carry: {} Zero: {} Negative: {}", a, b, result, self.carry_flag, self.zero_flag, self.negative_flag);
 
 		// let result = a.wrapping_sub(b);
 		// if result == 0 {self.zero_flag = true;} else {self.zero_flag = false;}
@@ -835,22 +1027,60 @@ impl Cpu6502 {
 	}
 
 	fn sbc(&mut self, value : u8) {
-
 		
 		if self.decimal_flag {
 			println!("Decimal mode SBC is non-functional");
 			return;
 		}
-
-
+		let oa = self.a;
 		let a = self.a;
 		let b = value;
 		let c = if self.carry_flag { 0 } else { 1 };
+
 		let result = a.wrapping_sub(b).wrapping_sub(c);
+		let signed_total = self.a as i16 - value as i16 - c as i16;
+
 		self.set_flags(result);
-		self.carry_flag = a >= b + c;
-		self.overflow_flag = (a ^ result) & (b ^ result) & 0x80 != 0;
+		//self.carry_flag = a >= b.wrapping_add(c);
+
+		if signed_total >= 0 {
+			self.carry_flag = true;
+		}
+		else
+		{
+			self.carry_flag = false;
+		}
+
+		let op0  = self.a & 0x80;
+		let op1 = value & 0x80;
+		let r = result & 0x80;
+
+		if (op0 == 0 && op1 != 0 && r != 0)
+		{
+			self.overflow_flag = true  // Set the V flag
+		}
+		else
+		{
+		
+			if (op0 != 0 && op1 == 0 && r == 0)
+			{
+				self.overflow_flag = true;
+			}
+			else
+			{
+				self.overflow_flag = false;              // Clear the V flag
+			}
+		}
+
+
+
+		//self.overflow_flag = (a ^ result) & (b ^ result) & 0x80 != 0;
 		self.a = result;
+
+		//println!("\n\rCycle: {} .  SBC: A: {:02X} B: {:02X} Result: {:02X} Carry: {} Zero: {} Negative: {}", self.cycle, oa, value, result, self.carry_flag, self.zero_flag, self.negative_flag);
+
+
+
 	}
 
 	fn subtract_with_carry_decimal(&mut self, value: u8) {
@@ -927,8 +1157,7 @@ impl Cpu6502 {
 	
 
 	fn get_absolute_address_x(&mut self) -> u16 {
-		 self.get_absolute_address().wrapping_add(self.x as u16)
-		 		
+		 self.get_absolute_address().wrapping_add(self.x as u16) 		
 	}
 
 	fn get_absolute_address_y(&mut self) -> u16 {
@@ -974,7 +1203,7 @@ impl Cpu6502 {
 		let ial = self.memory.read(self.pc) as u16;
 		let bal: u16 = self.memory.read((0xff & ial)) as u16;
 		let bah: u16 = self.memory.read((0xff & ial.wrapping_add(1))) as u16;
-		(bah << 8) | bal.wrapping_add(self.y as u16)		
+		(bah << 8).wrapping_add(bal.wrapping_add(self.y as u16))		
 	}
 
 
@@ -989,7 +1218,7 @@ impl Cpu6502 {
 
 	fn get_status_register(&self) -> u8 {
 		let mut sr : u8 = 0;
-		if self.carry_flag { sr |= 0b00000001; }
+		if self.carry_flag { sr = 1; }
 		if self.zero_flag { sr |= 0b00000010; }
 		if self.interrupt_flag { sr |= 0b00000100; }
 		if self.decimal_flag { sr |= 0b00001000; }
@@ -1052,10 +1281,22 @@ impl Cpu6502 {
 		self.pc = self.pc.wrapping_add(1);
 	}
 
+	fn plp(&mut self) {
+		let value: u8 = self.pop_stack();
+		self.negative_flag = value & 0x80 != 0;
+		self.overflow_flag = value & 0x40 != 0;
+		self.break_flag = value & 0x10 != 0;
+		self.decimal_flag = value & 0x08 != 0;
+		self.interrupt_flag = value & 0x04 != 0;
+		self.zero_flag = value & 0x02 != 0;
+		self.carry_flag = value & 0x01 != 0;
+	}
 
 	fn php(&mut self) {
-		let sr: u8 = self.get_status_register();
-		self.push_stack(sr);
+		self.break_flag = true;
+		self.unused_flag = true;
+		let r: u8 = self.get_status_register();
+		self.push_stack(r);
 	}
 
 
@@ -1173,7 +1414,7 @@ impl Cpu6502 {
 
 	fn jsr(&mut self) { 
 		let address: u16 = self.get_absolute_address(); 
-		self.pc = self.pc.wrapping_add(2); // adding 2?
+		self.pc = self.pc.wrapping_add(1); // adding 2?
 		let h: u8 = (self.pc >> 8) as u8; self.push_stack(h);
 		let l: u8 = (self.pc & 0xff) as u8; self.push_stack(l);
 		self.pc = address;
@@ -1207,25 +1448,24 @@ impl Cpu6502 {
 	fn rol_zeropage(&mut self) {
 		let address: u16 = self.get_zeropage();
 		let mut value: u8 = self.memory.read(address);
-		let carry: u8 = if self.carry_flag { 1 } else { 0 };
-		self.carry_flag = value & 0x80 != 0;
-		value <<= 1;
-		value |= carry;
-		self.memory.write(address, value);
+		let msb = value & 128 == 128;
+		value = value << 1;
+		value = value | (self.carry_flag as u8);
+		self.carry_flag = msb;
 		self.set_flags(value);
+		self.memory.write(address, value);
 		self.pc = self.pc.wrapping_add(1);
+
+		// let carry: u8 = if self.carry_flag { 1 } else { 0 };
+		// self.carry_flag = value & 0x80 != 0;
+		// value <<= 1;
+		// value |= carry;
+		// self.memory.write(address, value);
+		// self.set_flags(value);
+		// self.pc = self.pc.wrapping_add(1);
 	}
 
-	fn plp(&mut self) {
-		let value: u8 = self.pop_stack();
-		self.negative_flag = value & 0x80 != 0;
-		self.overflow_flag = value & 0x40 != 0;
-		self.break_flag = value & 0x10 != 0;
-		self.decimal_flag = value & 0x08 != 0;
-		self.interrupt_flag = value & 0x04 != 0;
-		self.zero_flag = value & 0x02 != 0;
-		self.carry_flag = value & 0x01 != 0;
-	}
+	
 
 	fn and_immediate(&mut self) {
 		let value: u8 = self.memory.read(self.pc);
@@ -1235,11 +1475,14 @@ impl Cpu6502 {
 	}
 
 	fn rol_accumulator(&mut self) {
+		
+		let msb = self.a & 128 == 128;
 		let carry: u8 = if self.carry_flag { 1 } else { 0 };
-		self.carry_flag = self.a & 0x80 != 0;
 		self.a <<= 1;
 		self.a |= carry;
 		self.set_flags(self.a);
+		self.carry_flag = msb;
+		
 	}
 
 	fn sta_indirect_y(&mut self) {
@@ -1266,15 +1509,25 @@ impl Cpu6502 {
 	}
 
 	fn rol_absolute(&mut self) {
+		
 		let address: u16 = self.get_absolute_address();
 		let mut value: u8 = self.memory.read(address);
 		let carry: u8 = if self.carry_flag { 1 } else { 0 };
-		self.carry_flag = value & 0x80 != 0;
+		let msb = value & 128 == 128;
 		value <<= 1;
 		value |= carry;
 		self.memory.write(address, value);
 		self.set_flags(value);
+		self.carry_flag = msb;
 		self.pc = self.pc.wrapping_add(2);
+
+		// let carry: u8 = if self.carry_flag { 1 } else { 0 };
+		// self.carry_flag = value & 0x80 != 0;
+		// value <<= 1;
+		// value |= carry;
+		// self.memory.write(address, value);
+		// self.set_flags(value);
+		// self.pc = self.pc.wrapping_add(2);
 	}
 
 	fn and_indirect_y(&mut self) {
@@ -1379,6 +1632,14 @@ impl Cpu6502 {
 
 	fn pha(&mut self) {
 		self.push_stack(self.a);
+	}
+
+	fn phx(&mut self) {
+		self.push_stack(self.x);
+	}
+
+	fn phy(&mut self) {
+		self.push_stack(self.y);
 	}
 
 	fn eor_immediate(&mut self) {
@@ -1502,14 +1763,17 @@ impl Cpu6502 {
 		let address_l: u16 = self.pop_stack() as u16;
 		let address_h: u16 = self.pop_stack() as u16;
 		let address = (address_h << 8) | address_l;
-		self.pc = address;
+		self.pc = address.wrapping_add(1); // Bug?
 	}
 
+	// sus
 	fn adc_indirect_x(&mut self) {
 		let address: u16 = self.get_indirect_x();
 		let value: u8 = self.memory.read(address);
+		//println!("Address is {} and value is {}", address, value);
 		self.adc(value);
 		self.pc = self.pc.wrapping_add(1);
+		//std::process::exit(0);
 	}
 
 	fn adc_zeropage(&mut self) {
@@ -1536,6 +1800,16 @@ impl Cpu6502 {
 		self.set_flags(self.a);
 	}
 
+	fn plx(&mut self) {
+		self.x = self.pop_stack();
+		self.set_flags(self.x);
+	}
+
+	fn ply(&mut self) {
+		self.y = self.pop_stack();
+		self.set_flags(self.y);
+	}
+
 	fn adc_immediate(&mut self) {
 		let value: u8 = self.get_immediate();
 		self.adc(value);
@@ -1543,7 +1817,6 @@ impl Cpu6502 {
 	}
 
 	fn ror_accumulator(&mut self) {
-
 		let lsb = (self.a & 0x01)  == 1;
 		self.a >>= 1;
 		self.a = self.a | ((self.carry_flag as u8) << 7);
@@ -1554,6 +1827,8 @@ impl Cpu6502 {
 	fn jmp_indirect(&mut self) {
 		self.pc = self.get_indirect();
 	}
+
+
 
 
 	fn adc_absolute(&mut self) {
@@ -1584,11 +1859,14 @@ impl Cpu6502 {
 		}
 	}
 
-	fn adc_indirect_y(&mut self) {
+	// sus 2
+	fn adc_indirect_y(&mut self) { // 71
 		let address: u16 = self.get_indirect_y();
 		let value: u8 = self.memory.read(address);
+		//println!("\n\rAddress is {} and value is {}", address, value);
 		self.adc(value);
 		self.pc = self.pc.wrapping_add(1);
+		//std::process::exit(0);
 	}
 
 	fn adc_zeropage_x(&mut self) {
@@ -2224,7 +2502,7 @@ impl Cpu6502 {
                 }
             }
             
-            self.a = (total & 0xFF) as u8;
+            self.a = (total as u8 & 0xFF) ;
             self.set_flags(self.a);
             
             return
@@ -2241,6 +2519,7 @@ impl Cpu6502 {
     
     fn adc_decimal(&mut self,s : u8)
     {
+
         // s = value to be added to accumulator
         
 		let c : u8 = if self.carry_flag { 1 } else { 0 };
