@@ -94,7 +94,7 @@ impl Cpu6502 {
 
 	pub fn string_cpu_status(&mut self) -> String {
 		let mut s = String::new();
-		s.push_str(&format!("\rCycle: {:04}  {:04X}  PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} SP:{:02X}  ", self.cycle, self.memory.read(self.pc), self.pc, self.a, self.x, self.y, self.sp));
+		s.push_str(&format!("\rCycle: {:04}  {:04X}  PC:{:04X} A:{:02X} X:{:02X} Y:{:02X} SP:{:02X} A0:{:02X} A0A0:{:02X}  ", self.cycle, self.memory.read(self.pc), self.pc, self.a, self.x, self.y, self.sp, self.memory.read(0xA0), self.memory.read(0xA0A0)));
 	
 		if self.negative_flag { s.push_str("N"); } else { s.push_str("n"); }
 		if self.overflow_flag { s.push_str("V"); } else { s.push_str("v"); }
@@ -129,17 +129,7 @@ impl Cpu6502 {
 		//println!("Keypress: {}",keypress);
 	}
 
-/*
-	pub fn execute_specific_instruction(&mut self, code : u8, mem1: u8, mem2 : u8)
-	{
-		self.pc = 0;
-		self.memory.write(0, code);
-		self.memory.write(1, mem1);
-		self.memory.write(2, mem2);
-		self.execute();
-	}
-*/
-	
+
 
 	// The call that causes the CPU to execute one instruction.
 	// Yeah, it's a giant switch.
@@ -150,32 +140,21 @@ impl Cpu6502 {
 		let code: u8 = self.memory.read(self.pc);
 
 
-		if (/*self.pc == 0xe6ec || */ self.trigger) && self.cycle < 500
-		{
-			//self.print_cpu_status_on_one_line();
-			self.trigger = true;
-		}
-
 		// move trace values down array
 	    for i in 0..9 {
 			self.trace[i] = self.trace[i+1];
 		}
 		
-	self.trace[9] = self.pc;
+		self.trace[9] = self.pc;
 
-	if self.pc == 0xe3e0 {
+		if self.pc == 0xe3e0 { // Some hacky debug stuff to do a little memory trace is the Apple BASIC hits an error
 		println!("\rError message");
 
 		// dump trace
 		for p in 0 .. 10 {
 			println!("\rBacktrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
 		}
-
-
 	}
-		
-		//print!("\r  PC: {:#04x}", self.pc);
-		//print!("\r   Code: {:#01x}", code);
 
 		self.pc = self.pc.wrapping_add(1);
 
@@ -2511,6 +2490,7 @@ impl Cpu6502 {
         }
         else // decimal mode
         {
+			println!("Decimal ADC is buggy");
             self.adc_decimal(n2);
            
         }
