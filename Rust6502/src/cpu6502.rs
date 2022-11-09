@@ -21,12 +21,9 @@ pub struct Cpu6502 {
 	pub break_flag: bool,
 	pub unused_flag: bool,
 	// State
-	 pub decimal_mode : bool,
 	 pub cycle : u16,
-	 pub trigger : bool,
 	 // Memory - I found it helped the design a LOT of memory was considered part of the CPU.
 	pub memory : MemoryArray,
-
 	pub trace : [u16; 10],
 }
 
@@ -53,9 +50,7 @@ impl Cpu6502 {
 			negative_flag: false,
 			break_flag: false,
 			unused_flag: false,
-			decimal_mode : false,
 			cycle : 0,
-			trigger : false,
 			memory : MemoryArray::init(),
 			trace : [0; 10],
 		}
@@ -63,18 +58,25 @@ impl Cpu6502 {
 
 	// Some helper functions.
 
-
 	pub fn reset_pc(&mut self)
 	{
 		self.pc = 0;
 	}
 
+	// Some CPU actions.
+
+	pub fn reset(&mut self) {
+		*self = Cpu6502::new();
+		self.pc = 0xff00; // Start at software i.e. WozMon ff00 or BASIC e000
+	}
+
 	pub fn load_data_into_memory(&mut self, address : u16, data : Vec<u8>) {
 		for (i, byte) in data.iter().enumerate() {
-			self.memory.write(address + i as u16, *byte);
+			self.memory.write_with_status(address + i as u16, *byte, true);
 			}
 	}
 
+	// Useful debugging function
 	pub fn dump_memory(&mut self, start : u16, end : u16) {
 
 		let mut add = start;
@@ -88,8 +90,6 @@ impl Cpu6502 {
 			}
 			println!("{}", line);
 		}
-
-
 	}
 
 	pub fn string_cpu_status(&mut self) -> String {
@@ -108,25 +108,12 @@ impl Cpu6502 {
 		s
 	}
 
-	pub fn print_cpu_status_on_one_line(&mut self) {
-		print!("{}", self.string_cpu_status());
-	}
-
-
-
-	// Some CPU actions.
-
-	pub fn reset(&mut self) {
-		*self = Cpu6502::new();
-		self.pc = 0xff00; // Start at software i.e. WozMon or BASIC
-	}
 
 	// Apple-1 hardware
 
 	pub fn set_keypress(&mut self, keypress : u8) {
 		self.memory.apple_key_ready = true;
 		self.memory.apple_key_value = keypress ; 
-		//println!("Keypress: {}",keypress);
 	}
 
 
@@ -136,28 +123,30 @@ impl Cpu6502 {
 
 	pub fn execute(&mut self) -> bool
 	{
-		
+		// Get the instruction to execute, and update the program counter.
+
 		let code: u8 = self.memory.read(self.pc);
+		self.pc = self.pc.wrapping_add(1);
 
-
-		// move trace values down array
+		// Keep a trace of the last 10 instructions executed for debugging.
 	    for i in 0..9 {
 			self.trace[i] = self.trace[i+1];
 		}
-		
 		self.trace[9] = self.pc;
 
-		if self.pc == 0xe3e0 { // Some hacky debug stuff to do a little memory trace is the Apple BASIC hits an error
-		println!("\rError message");
+		// Some hacky debug stuff to do a little memory trace if the Apple BASIC hits an error
+		// because e3e0 is the rom routine called to print error messages.
+		if self.pc == 0xe3e0 { 
+			println!("\rError message");
 
-		// dump trace
-		for p in 0 .. 10 {
-			println!("\rBacktrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
+			// dump trace
+			for p in 0 .. 10 {
+				println!("\rBacktrace {:04X} {:02X}", self.trace[p], self.memory.read(self.trace[p]));
+			}
 		}
-	}
 
-		self.pc = self.pc.wrapping_add(1);
-
+	//	Now the 6502 execution stuff. It's not subtle.
+	
 		match code {
 			0x00 => {
 				self.brk();
@@ -399,11 +388,6 @@ impl Cpu6502 {
 		
 			0x59 => {
 				self.eor_absolute_y();
-				return true;
-			}
-
-			0x5a => {
-				self.phy();
 				return true;
 			}
 		
@@ -1008,10 +992,10 @@ impl Cpu6502 {
 	fn sbc(&mut self, value : u8) {
 		
 		if self.decimal_flag {
-			println!("Decimal mode SBC is non-functional");
+			self.subtract_with_carry_decimal(value); // Not sure how reliable this is!
 			return;
 		}
-		let oa = self.a;
+
 		let a = self.a;
 		let b = value;
 		let c = if self.carry_flag { 0 } else { 1 };
@@ -1020,7 +1004,6 @@ impl Cpu6502 {
 		let signed_total = self.a as i16 - value as i16 - c as i16;
 
 		self.set_flags(result);
-		//self.carry_flag = a >= b.wrapping_add(c);
 
 		if signed_total >= 0 {
 			self.carry_flag = true;
@@ -1034,14 +1017,14 @@ impl Cpu6502 {
 		let op1 = value & 0x80;
 		let r = result & 0x80;
 
-		if (op0 == 0 && op1 != 0 && r != 0)
+		if op0 == 0 && op1 != 0 && r != 0
 		{
 			self.overflow_flag = true  // Set the V flag
 		}
 		else
 		{
 		
-			if (op0 != 0 && op1 == 0 && r == 0)
+			if op0 != 0 && op1 == 0 && r == 0
 			{
 				self.overflow_flag = true;
 			}
@@ -1051,14 +1034,7 @@ impl Cpu6502 {
 			}
 		}
 
-
-
-		//self.overflow_flag = (a ^ result) & (b ^ result) & 0x80 != 0;
 		self.a = result;
-
-		//println!("\n\rCycle: {} .  SBC: A: {:02X} B: {:02X} Result: {:02X} Carry: {} Zero: {} Negative: {}", self.cycle, oa, value, result, self.carry_flag, self.zero_flag, self.negative_flag);
-
-
 
 	}
 
@@ -1081,7 +1057,7 @@ impl Cpu6502 {
 			flag_c_invert = 1;
 		}
 
-		if self.decimal_mode {
+		if self.decimal_flag {
 
 			bcd_low = 0xffff & (0x0f & register_a) as u16 - (0x0f & value) as u16 - flag_c_invert as u16;
 			if bcd_low > 0x09 {
@@ -1168,20 +1144,12 @@ impl Cpu6502 {
 		
 	}
 
-	// Buggy version?
-	fn old_get_indirect_y(&mut self) -> u16 {
-		let address = (self.memory.read(self.pc).wrapping_add(self.y) as u16) & 0xff;
-		let low_byte = self.memory.read(address) as u16;
-		let high_byte = self.memory.read(address.wrapping_add(1)) as u16;
-		(high_byte << 8) | low_byte		
-	}
 
-	// Correct version?
 	fn get_indirect_y(&mut self) -> u16 {
 
 		let ial = self.memory.read(self.pc) as u16;
-		let bal: u16 = self.memory.read((0xff & ial)) as u16;
-		let bah: u16 = self.memory.read((0xff & ial.wrapping_add(1))) as u16;
+		let bal: u16 = self.memory.read(0xff & ial) as u16;
+		let bah: u16 = self.memory.read(0xff & ial.wrapping_add(1)) as u16;
 		(bah << 8).wrapping_add(bal.wrapping_add(self.y as u16))		
 	}
 
@@ -1220,8 +1188,8 @@ impl Cpu6502 {
 
 
 	// 6502 Instruction Set
-	// Again not yet proven, there will be bugs. Needs testing.
-	// Likely issues are around the addressing, math and PC incrementing.
+	// Tested against working emulator, but as it doesn't run Apple BASIC
+	// it's possible that something is still wrong.
 
 
 
@@ -1742,7 +1710,7 @@ impl Cpu6502 {
 		let address_l: u16 = self.pop_stack() as u16;
 		let address_h: u16 = self.pop_stack() as u16;
 		let address = (address_h << 8) | address_l;
-		self.pc = address.wrapping_add(1); // Bug?
+		self.pc = address.wrapping_add(1); 
 	}
 
 	// sus
@@ -2328,11 +2296,10 @@ impl Cpu6502 {
 		self.pc = self.pc.wrapping_add(1);
 	}
 
-	fn sbc_zeropage(&mut self) { // plop
+	fn sbc_zeropage(&mut self) { 
 		let address: u16 = self.get_zeropage();
 		let value: u8 = self.memory.read(address);
-		self.sbc(value); // PLOP
-		//self.subtract_with_carry_decimal(value);
+		self.sbc(value); 
 		self.pc = self.pc.wrapping_add(1);
 	}
 	
@@ -2447,7 +2414,7 @@ impl Cpu6502 {
 
         let value = n2 as u16;
         
-        if !self.decimal_mode
+        if !self.decimal_flag
         {
             let total = self.a as u16 + value + c;
             
@@ -2481,7 +2448,7 @@ impl Cpu6502 {
                 }
             }
             
-            self.a = (total as u8 & 0xFF) ;
+            self.a = total as u8 & 0xFF;
             self.set_flags(self.a);
             
             return
@@ -2490,7 +2457,7 @@ impl Cpu6502 {
         }
         else // decimal mode
         {
-			println!("Decimal ADC is buggy");
+			//Decimal ADC is potentially buggy
             self.adc_decimal(n2);
            
         }

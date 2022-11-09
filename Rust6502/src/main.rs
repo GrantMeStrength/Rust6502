@@ -13,8 +13,8 @@
 
  pub fn main()  {
 
+	// Create a file to log instruction activity when in debug mode.
 	let path = "6502dump.txt";
-    
 	let mut output = File::create(path).expect("failed to create file");
 
 	// If debug is true, run tests to compare with other CPU results and no interactive terminal
@@ -23,13 +23,12 @@
 	 // Set terminal to raw mode to allow reading stdin one key at a time
 	 let mut stdout = io::stdout().into_raw_mode().unwrap();
 
-	 // Use asynchronous stdin
+	 // Use asynchronous stdin, to allow keyboard to be read.
 	 let mut stdin = termion::async_stdin().keys();
 
 
-	// 6502 Implementation
+	// Create the 6502 Implementation
 	let mut cpu6502 : cpu6502::Cpu6502 = cpu6502::Cpu6502::new();
-	
 	cpu6502.reset();
 
 	if !debug {
@@ -43,12 +42,11 @@
 	}
 
 	
-	write!(
-			stdout, "{}{}",
-			termion::clear::All,
-			termion::cursor::Goto(1, 1),
-		).unwrap();
+	// This is the terminal control stuff, used to display text.
+	write!(	stdout, "{}{}", termion::clear::All, termion::cursor::Goto(1, 1), ).unwrap();
 	
+	// If debug, then run some tests to compare against known working system. Not so useful if you aren't
+	// using the known system.
 	if debug {
 
 		println!("\n\rStarting debug run.");
@@ -68,72 +66,72 @@
 			cpu6502.x = 0xa0;
 			cpu6502.y = 0xa0;
 			if cpu6502.execute() {
-
 				write!(stdout, "{}{}", termion::cursor::Goto(1, cur_y), termion::cursor::Down(1) ).unwrap();
 				write!(output, "{}", cpu6502.string_cpu_status());
-
-				cur_y = cur_y+1;
-				if cur_y > 40 { cur_y = 0;}
-
+				cur_y = cur_y+1; if cur_y > 40 { cur_y = 0;}
 			}
-
 	}
 	
 	println!("\n\rDebug run complete, data saved to file.");
 
 	std::process::exit(0);
-
 }
 
-// Non-debug, actual ROM code execution starts here
+// Non-debug, actual ROM code execution starts here.
+// Launch WozMon (FF00) by default.
 
-	write!(
-		stdout, "{}{}",
-		termion::clear::All,
-		termion::cursor::Goto(1, 1),
-	).unwrap();
+	// Start at the top of the screen
+	write!( stdout, "{}{}", termion::clear::All, termion::cursor::Goto(1, 1), ).unwrap();
 	
 
 
 	// Main CPU instruction execution loop
 	loop {
 
-		//Check for keypress 
+		//Check for keypress so we can pass the result into the right 6502 memory location as per an Apple 1
 		let input = stdin.next();
 
-	 //If a key was pressed
-	 if let Some(Ok(key)) = input {
+	 	//If a key was pressed
+	 	if let Some(Ok(key)) = input {
 
-
-		match key {
+			match key {
 			
-			// Exit if 'Esc' is pressed
-			termion::event::Key::Esc => break,
+				// Exit the app if 'Esc' is pressed
+				termion::event::Key::Esc => break,
 
-			// CR/LF?
-			termion::event::Key::Char('\n') => {
-				cpu6502.set_keypress(13);
+				// CR/LF?
+				termion::event::Key::Char('\n') => {
+					cpu6502.set_keypress(13);
+				}
+
+				// Send the pressed key to the right memory location
+
+				_ => {
+					let key_s : String = format!("{:?}", key);
+					cpu6502.set_keypress(key_s.bytes().nth(6).unwrap());
+				}
 			}
 
-			// Else send the pressed key to the right memory location
-
-			_ => {
-				let key_s : String = format!("{:?}", key);
-				cpu6502.set_keypress(key_s.bytes().nth(6).unwrap());
-			}
 		}
+
+	// If there is output from the Apple-1 ROM, then display it.
+	
+	if cpu6502.memory.apple_output_char_waiting {
+		let output_char = cpu6502.memory.apple_output_char;
+		print!("{}", output_char as char);
+		if output_char == 13 { println!(""); }
+		cpu6502.memory.apple_output_char_waiting = false;
 	}
 
-	let c = cpu6502.memory.read(0x0d12) as char;
-	print!("{}", c);
+	// The terminal software seems to like it if you print 0's
+	// on other implementations this will be unnecessary.
+	let d = 0 as char;
+	print!("{}", d);
 
 
-	//thread::sleep(time::Duration::from_millis(1));
-
-	//Keep running the code
+	// Now that the I/O stuff is done, actually execute some 6502 instructions!
 	cpu6502.execute(); 
 	
-
 
 	}
 

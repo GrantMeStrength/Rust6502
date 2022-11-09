@@ -2,7 +2,7 @@
 
 // This is 64Kb of memory. It has some special addresses that are for the various
 // 6502-based machines that are emulated. For example, the Apple-1 has specific addresses
-// for character output and keyboard input.
+// for character output and keyboard input, hurrah for the 6502's memory mapped I/O! ;-)
 
 
 // An 8bit memory cell with a flag to mark ROM
@@ -35,18 +35,19 @@ impl MemoryArray {
         memory_map
    }
 
-   // The hard-working 'give me a byte at this address' function
+   // The hard-working 'give me a byte at this address' function.
+   // It has some extra stuff to handle the Apple-1's I/O.
+
    pub fn read(&mut self, address : u16) -> u8 {
 	
 	// Apple specific keyboard input
 
-	if address == 0xd012  ||  address == 0xD0F2 {
+	if address == 0xD012 ||  address == 0xD0F2 {
 		return 0x00
 	}
 
-	if address == 0xd010 {
-
-		//println!("Key pressed: {}",self.apple_key_value);
+	// Check to see if there is a keypress for us to process.
+	if address == 0xD010 {
 
 		if self.apple_key_value == 92 {
 			self.apple_key_value = 10
@@ -56,16 +57,13 @@ impl MemoryArray {
 		{
 			self.apple_key_value = self.apple_key_value & 0x5f;
 		}
-			if self.apple_key_value == 10
-			{
-				self.apple_key_value = 13;
-			}
-
-			self.apple_key_ready = false;
-
-			//println!("Key pressed: {:02X}",self.apple_key_value | 0x80);
-			
-			return self.apple_key_value | 0x80;
+		
+		if self.apple_key_value == 10
+		{
+			self.apple_key_value = 13;
+		}
+		self.apple_key_ready = false;
+		return self.apple_key_value | 0x80;
 	}
 	
 
@@ -77,23 +75,28 @@ impl MemoryArray {
 		}
 	}
 
+	// Nothing special, return memory contents
        self.memory[address as usize].value
    }
 
-   // Matching 'set a bytes at this address' function
+
+   pub fn write_with_status(&mut self, address : u16, value : u8, ro: bool) {
+	   self.memory[address as usize].value = value;
+	   self.memory[address as usize].readonly = ro;
+   }
+
+   // The 'set a byte at this address' function, with
+   // some extra stuff for the Apple 1 character display code.
    pub fn write(&mut self, address : u16, value : u8) {
 
-        // Apple WozMon print a character to the screen
+        // Apple WozMon/BASIC prints a character to the screen by writing to this address
         if address == 0xd012 {
 			self.apple_output_char_waiting = true;
 			self.apple_output_char = value & 0x7f;
-            print!("{}", (self.apple_output_char) as char);
-
-			if self.apple_output_char == 10 || self.apple_output_char == 13  {
-				print!("\n");
-			}
         }
 
+		// If this isn't ROM, then write to it.
+		// The WozMon and Apple BASIC memory is marked read-only.
        if !self.memory[address as usize].readonly {
            self.memory[address as usize].value = value;
        }
