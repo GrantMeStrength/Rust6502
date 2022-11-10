@@ -87,12 +87,7 @@ impl MemoryArray {
     // The 'set a byte at this address' function, with
     // some extra stuff for the Apple 1 character display code.
     pub fn write(&mut self, address: u16, value: u8) {
-        // Apple WozMon/BASIC prints a character to the screen by writing to this address
-        if address == 0xd012 {
-            self.apple_output_char_waiting = true;
-            self.apple_output_char = value & 0x7f;
-        }
-
+        
         // If this isn't ROM, then write to it.
         // The WozMon and Apple BASIC memory is marked read-only.
         if !self.memory[address as usize].readonly {
