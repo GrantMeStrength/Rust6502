@@ -215,7 +215,7 @@ impl Cpu6502 {
                 return true;
             }
             0x11 => {
-                self.ora_indirect();
+                self.ora_indirect_indexed_y();
                 return true;
             }
             0x15 => {
@@ -1013,7 +1013,11 @@ impl Cpu6502 {
         self.memory.read(self.pc) as u8
     }
 
+
+    
+
     fn sbc(&mut self, value: u8) {
+   
         if self.decimal_flag {
             self.subtract_with_carry_decimal(value); // Not sure how reliable this is!
             return;
@@ -1021,7 +1025,9 @@ impl Cpu6502 {
 
         let a = self.a;
         let b = value;
-        let c = if self.carry_flag { 0 } else { 1 };
+        let mut c = 0;
+        
+        if !self.carry_flag {c =  1} ;
 
         let result = a.wrapping_sub(b).wrapping_sub(c);
         let signed_total = self.a as i16 - value as i16 - c as i16;
@@ -1040,13 +1046,13 @@ impl Cpu6502 {
 
         if op0 == 0 && op1 != 0 && r != 0 {
             self.overflow_flag = true // Set the V flag
-        } else {
+        } else 
             if op0 != 0 && op1 == 0 && r == 0 {
                 self.overflow_flag = true;
             } else {
                 self.overflow_flag = false; // Clear the V flag
             }
-        }
+        
 
         self.a = result;
     }
@@ -1076,8 +1082,8 @@ impl Cpu6502 {
                 bcd_low = bcd_low.wrapping_add(0x0A);
             }
 
-            bcd_high =
-                0xffff & (0xf0 & register_a) as u16 - (0xf0 & value) as u16 - low_carry as u16;
+            println!("BCD");
+            bcd_high = 0xffff & (0xf0 & register_a) as u16 - (0xf0 & value) as u16 - low_carry as u16;
 
             if bcd_high > 0x90 {
                 high_carry = 1;
@@ -1213,8 +1219,14 @@ impl Cpu6502 {
         self.push_stack(l);
         let sr: u8 = self.get_status_register();
         self.push_stack(sr);
-        //self.pc = self.get_address_at_address(0x17fa);
-        //self.pc = 0xfffe;
+    }
+
+    fn ora_indirect_indexed_y(&mut self) {
+        let adr = self.get_indirect_y();
+        let value   = self.memory.read(adr);
+        self.a |= value;
+        self.set_flags(self.a);
+        self.pc = self.pc.wrapping_add(1);
     }
 
     fn ora_indirect_x(&mut self) {
@@ -2416,13 +2428,12 @@ impl Cpu6502 {
 
             if operand0 == 0 && operand1 == 0 && result != 0 {
                 self.overflow_flag = true; // Set the V flag
-            } else {
-                if operand0 != 0 && operand1 != 0 && result == 0 {
+            } else if operand0 != 0 && operand1 != 0 && result == 0 {
                     self.overflow_flag = true;
                 } else {
                     self.overflow_flag = false; // Clear the V flag
                 }
-            }
+            
 
             self.a = total as u8 & 0xFF;
             self.set_flags(self.a);
