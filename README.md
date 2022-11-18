@@ -16,9 +16,8 @@ Currently it works well enough to run WozMon, but that's about it.
 
 ## Limitations
 
-* Only tested on Apple macOS at the moment
-* Apple BASIC starts, but won't display anything other than error messages
-* Doesn't support SBC in Decimal mode just yet
+* Apple BASIC starts, but quickly goes horribly wrong
+* Doesn't support SBC in Decimal mode properly just yet
 * I've tested the opcodes a lot, but there's probably an error or ten still there.
 
 
